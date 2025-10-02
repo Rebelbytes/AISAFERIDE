@@ -80,6 +80,7 @@ export default function Dashboard() {
       let dataBuffer = '';
       let finalData = null;
 
+      let isStreaming = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -96,6 +97,7 @@ export default function Dashboard() {
             alert('Error processing file: ' + trimmedLine.slice(6));
             return;
           } else if (trimmedLine.startsWith('DATA:')) {
+            isStreaming = true;
             try {
               const jsonStr = trimmedLine.slice(5).trim();
               finalData = JSON.parse(jsonStr);
@@ -120,18 +122,33 @@ export default function Dashboard() {
         }
       }
 
-      if (finalData && finalData.violation_types && finalData.violation_types.length > 0) {
-        console.log('Violations detected:', finalData.violation_types);
-      } else if (finalData) {
-        console.log('No violations in data:', finalData);
+      // If not streaming, parse the entire response as JSON
+      if (!isStreaming) {
+        try {
+          finalData = JSON.parse(dataBuffer.trim());
+          console.log('Parsed JSON data:', finalData);
+        } catch (e) {
+          console.error('Failed to parse response as JSON:', e, dataBuffer);
+        }
       }
 
-      if (finalData) {
+      if (finalData && finalData.violations && finalData.violations.length > 0) {
+        console.log('Violations detected:', finalData.violations);
         navigate("/preview-detection", {
           state: {
-            annotated_media: finalData.annotated_media || [],
-            violation_types: finalData.violation_types || [],
-            violation_images: finalData.violation_images || [],
+            annotated_media: [finalData.annotated_video],
+            violation_types: finalData.violations,
+            violation_images: finalData.violations.map(v => v.frame_image),
+            originalFile: selectedFile
+          }
+        });
+      } else if (finalData) {
+        console.log('No violations in data:', finalData);
+        navigate("/preview-detection", {
+          state: {
+            annotated_media: [finalData.annotated_video],
+            violation_types: [],
+            violation_images: [],
             originalFile: selectedFile
           }
         });

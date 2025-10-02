@@ -13,193 +13,171 @@ import tempfile
 import os
 import uuid
 from datetime import datetime
-
+import math
+from .models import Violation
+from .serializers import ViolationSerializer
 # Load models (updated for merged 2wheeler model)
-model_dir = os.path.join(settings.BASE_DIR.parent, '')  # Root directory
-try:
-    merged_2whe_model = YOLO(os.path.join(model_dir, "2whe_merged.pt"))
-    print("Merged 2wheeler model loaded successfully")
-except Exception as e:
-    print(f"Error loading merged 2wheeler model: {e}")
-    merged_2whe_model = None
+# Load YOLO model
+model_dir = os.path.join(settings.BASE_DIR.parent, "")
+merged_2whe_model = YOLO(os.path.join(model_dir, "best.pt"))
 
-# Red light model will be added later
-red_light_model = None  # Placeholder
-
-
-# Updated class map based on merged model
-violation_class_map = {
+violation_classes = {
     0: "number_plate",
     1: "no_helmet",
-    2: "rider",
-    3: "Triple_riding",
-    4: "right-side",
-    5: "wrong-side",
-    6: "USING_MOBILE",
-    7: "Vehicle_no_license_plate"
+    3: "triple_riding",
+    4: "right_side",
+    5: "wrong_side",
+    6: "using_mobile",
+    7: "vehicle_no_license_plate"
 }
 
 colors = {
-    "no_helmet": (0,0,255),
-    "Triple_riding": (255,0,0),
-    "wrong-side": (255,165,0),
-    "USING_MOBILE": (255,0,255),
-    "number_plate": (0,255,0),
-    "Red Light Jumping": (0,255,255)
+    0: (255, 0, 0),
+    1: (0, 0, 255),
+    3: (0, 255, 255),
+    4: (255, 255, 0),
+    5: (255, 0, 255),
+    6: (128, 0, 128),
+    7: (0, 255, 255)
 }
 
-def detect_frame(frame, violation_category='general', vehicle_type='2 wheeler', save_violations_dir=None):
-    violation_types = []
-    violation_images = []
-    print(f"Processing frame of shape: {frame.shape}")  # Debug
+conf_thresholds = {
+    0: 0.2,
+    1: 0.6,
+    3: 0.2,
+    4: 0.1,
+    5: 0.1,
+    6: 0.2,
+    7: 0.15
+}
 
-    if violation_category == 'general':
-        # Use merged model for general violations
-        if merged_2whe_model:
-            try:
-                results = merged_2whe_model(frame, conf=0.1)
-                print(f"Detections: {len(results[0].boxes)}")  # Debug
-                for box in results[0].boxes:
-                    cls_id = int(box.cls[0])
-                    conf = float(box.conf[0])
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    label = violation_class_map.get(cls_id, f"Unknown-{cls_id}")
-                    color = colors.get(label, (255,255,255))
-                    cv2.rectangle(frame, (x1,y1), (x2,y2), color, 2)
-                    cv2.putText(frame, f"{label} {conf:.2f}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-                    # Check if it's a violation
-                    if label in ["no_helmet", "Triple_riding", "wrong-side", "USING_MOBILE", "number_plate"]:
-                        violation_type_folder = label.replace('_', ' ').title()
-                        violation_types.append({"type": violation_type_folder, "confidence": conf, "bbox": [x1, y1, x2, y2]})
-                        if save_violations_dir:
-                            cropped = frame[y1:y2, x1:x2]
-                            if cropped.size > 0:
-                                date = datetime.now().strftime('%Y-%m-%d')
-                                img_name = f"violation_{uuid.uuid4()}.jpg"
-                                img_dir = os.path.join(save_violations_dir, date, violation_type_folder)
-                                os.makedirs(img_dir, exist_ok=True)
-                                img_path = os.path.join(img_dir, img_name)
-                                cv2.imwrite(img_path, cropped)
-                                violation_images.append(f"{settings.MEDIA_URL}violations/{date}/{violation_type_folder}/{img_name}")
-            except Exception as e:
-                print(f"Merged model detection error: {e}")
-        else:
-            print("Merged model not loaded")
+def center(x1, y1, x2, y2):
+    return ((x1 + x2) // 2, (y1 + y2) // 2)
 
-    print(f"Total violations: {len(violation_types)}")  # Debug
-    return frame, violation_types, violation_images
+def detect_frame(frame):
+    violations = []
+    plates = []
+    vehicle_no_plate = []
+
+    results = merged_2whe_model(frame, conf=0.1)[0]
+
+    print(f"Detected {len(results.boxes)} objects")
+
+    for box in results.boxes:
+        cls_id = int(box.cls[0])
+        conf = float(box.conf[0])
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+        print(f"Class ID: {cls_id}, Conf: {conf}")
+
+        if cls_id in conf_thresholds and conf < conf_thresholds[cls_id]:
+            print(f"Skipped due to low confidence: {conf} < {conf_thresholds[cls_id]}")
+            continue
+
+        if cls_id == 0:
+            plates.append((x1, y1, x2, y2))
+        elif cls_id == 7:
+            vehicle_no_plate.append((x1, y1, x2, y2))
+        elif cls_id in [1, 3, 4, 5, 6]:
+            violations.append({
+                "type": violation_classes[cls_id],  # string label
+                "confidence": conf,
+                "bbox": (x1, y1, x2, y2)
+            })
+            print(f"Added violation: {violation_classes[cls_id]}")
+
+    print(f"Total violations in frame: {len(violations)}")
+
+    if not violations:
+        return frame, []
+
+    # Draw violations on frame
+    drawn_plates = set()
+    for v in violations:
+        x1, y1, x2, y2 = v["bbox"]
+        cls_id = list(violation_classes.keys())[list(violation_classes.values()).index(v["type"])]
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colors[cls_id], 2)
+        cv2.putText(frame, v["type"], (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[cls_id], 2)
+
+        if plates:
+            vx, vy = (x1+x2)//2, (y1+y2)//2
+            nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0]+p[2])//2, vy - (p[1]+p[3])//2))
+            if nearest_plate not in drawn_plates:
+                px1, py1, px2, py2 = nearest_plate
+                cv2.rectangle(frame, (px1, py1), (px2, py2), colors[0], 2)
+                cv2.putText(frame, "Number Plate", (px1, py1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[0], 2)
+                drawn_plates.add(nearest_plate)
+
+    return frame, violations
 
 class DetectView(APIView):
     def post(self, request):
-        if 'file' not in request.FILES:
-            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+        if "file" not in request.FILES:
+            return Response({"error": "No file"}, status=status.HTTP_400_BAD_REQUEST)
 
-        vehicle_type = request.data.get('vehicle_type')
-        if vehicle_type not in ['2 wheeler', '4 wheeler']:
-            return Response({"error": "Only 2 wheeler and 4 wheeler supported"}, status=status.HTTP_400_BAD_REQUEST)
-
-        violation_category = request.data.get('violation_category', 'general')
-
-        uploaded_file = request.FILES['file']
+        uploaded_file = request.FILES["file"]
         fs = FileSystemStorage()
         filename = fs.save(uploaded_file.name, uploaded_file)
         filepath = fs.path(filename)
 
-        preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
-        violations_dir = os.path.join(settings.MEDIA_ROOT, 'violations')
-        os.makedirs(preview_dir, exist_ok=True)
-        os.makedirs(violations_dir, exist_ok=True)
+        is_video = filepath.lower().endswith(('.mp4', '.avi', '.mov'))
+        violations_created = []
 
-        def process_stream():
-            annotated_media = []
-            violation_types = []
-            violation_images = []
-            is_video = filepath.lower().endswith(('.mp4', '.avi', '.mov'))
+        if is_video:
+            cap = cv2.VideoCapture(filepath)
+            if not cap.isOpened():
+                return Response({"error": "Cannot open video"}, status=400)
 
-            if is_video:
-                yield "Starting video processing...\n"
-                cap = cv2.VideoCapture(filepath)
-                if not cap.isOpened():
-                    yield "ERROR: Could not open video file\n"
-                    return
+            fps = int(cap.get(cv2.CAP_PROP_FPS))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-                # Get video properties
-                fps = int(cap.get(cv2.CAP_PROP_FPS))
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                yield f"Video loaded: {total_frames} frames at {fps} FPS ({width}x{height})\n"
+            preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
+            os.makedirs(preview_dir, exist_ok=True)
+            video_out_path = os.path.join(preview_dir, "output.mp4")
+            out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-                # Prepare output video writer
-                fourcc = cv2.VideoWriter_fourcc(*'avc1')
-                date = datetime.now().strftime('%Y-%m-%d')
-                annotated_video_name = f"annotated_{uuid.uuid4()}.mp4"
-                annotated_video_path = os.path.join(preview_dir, date, annotated_video_name)
-                os.makedirs(os.path.dirname(annotated_video_path), exist_ok=True)
-                out = cv2.VideoWriter(annotated_video_path, fourcc, fps, (width, height))
 
-                print(f"VideoWriter initialized with fps={fps}, size=({width},{height}), codec='XVID'")  # Debug
+            frame_count = 0
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_count += 1
+                if frame_count % 2 != 0:
+                    continue  # skip alternate frames
 
-                frame_count = 0
-                first_frame = None
+                processed_frame, violations_in_frame = detect_frame(frame)
 
-                while cap.isOpened():
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    frame_count += 1
-                    progress = (frame_count / total_frames) * 100
-                    yield f"Processing frame {frame_count}/{total_frames} ({progress:.1f}%)\n"
+                for violation in violations_in_frame:
+                    # Save frame image
+                    frame_name = f"frame_{uuid.uuid4()}.jpg"
+                    frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                    os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                    cv2.imwrite(frame_path, processed_frame)
 
-                    # Annotate frame with detections
-                    processed_frame, frame_violations, _ = detect_frame(frame, violation_category, vehicle_type)  # Pass params
-                    violation_types.extend(frame_violations)
+                    # Save each violation individually
+                    violation_obj = Violation.objects.create(
+                        frame_image=os.path.join("violation_frames", frame_name),
+                        violation_type=violation["type"],
+                        confidence=violation["confidence"]
+                    )
+                    violations_created.append(violation_obj)
 
-                    if processed_frame is None or processed_frame.size == 0:
-                        print(f"Warning: processed_frame is empty at frame {frame_count}")
-                        continue
+                out.write(processed_frame)
 
-                    # Write annotated frame to output video
-                    out.write(processed_frame)
+            cap.release()
+            out.release()
+        else:
+            return Response({"error": "Only video files supported"}, status=400)
 
-                    if first_frame is None:
-                        first_frame = processed_frame.copy()
+        print(f"Total violations created: {len(violations_created)}")
+        serializer = ViolationSerializer(violations_created, many=True)
+        return Response({
+            "violations": serializer.data,
+            "annotated_video": f"{settings.MEDIA_URL}previews/output.mp4"
+        })
 
-                cap.release()
-                out.release()
-
-                yield f"Video processing complete: {frame_count} frames processed\n"
-
-                # Add annotated video URL to response
-                if os.path.exists(annotated_video_path) and os.path.getsize(annotated_video_path) > 0:
-                    full_url = f"{settings.MEDIA_URL}previews/{date}/{annotated_video_name}"
-                    annotated_media.append(full_url)
-                    yield f"Annotated video saved successfully: {full_url}\n"
-                else:
-                    yield "WARNING: Video file may be empty\n"
-                    # Fallback to first frame
-                    if first_frame is not None:
-                        img_name = f"preview_{uuid.uuid4()}.jpg"
-                        img_path = os.path.join(preview_dir, img_name)
-                        cv2.imwrite(img_path, first_frame)
-                        full_url = f"http://127.0.0.1:8000{settings.MEDIA_URL}previews/{img_name}"
-                        annotated_media.append(full_url)
-                        yield f"Fallback preview frame saved: {full_url}\n"
-
-                # Final JSON response
-                import json
-                final_data = {
-                    "status": "complete",
-                    "annotated_media": annotated_media,
-                    "violation_types": violation_types,
-                    "violation_images": violation_images
-                }
-                yield "===PROCESSING COMPLETE===\n"
-                yield f"DATA:{json.dumps(final_data)}\n"
-
-        response = StreamingHttpResponse(process_stream(), content_type='text/plain')
-        response['Cache-Control'] = 'no-cache'
-        return response
 
 def home(request):
     return JsonResponse({"message": "Welcome to Saferide Backend"})
@@ -237,4 +215,10 @@ class SavedViolationsView(APIView):
                         })
 
         return Response({"violations_by_date": violations_by_date})
+
+class ViolationsListView(APIView):
+    def get(self, request):
+        violations = Violation.objects.all().order_by('-created_at')
+        serializer = ViolationSerializer(violations, many=True)
+        return Response(serializer.data)
 
