@@ -1,70 +1,96 @@
-# Getting Started with Create React App
+# Saferide AI Project
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project consists of a backend API service and a frontend React application for detecting and managing traffic violations using AI.
 
-## Available Scripts
+## Prerequisites
 
-In the project directory, you can run:
+- Python 3.8+
+- Node.js 16+
+- npm or yarn
+- Git
 
-### `npm start`
+## Backend Setup
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+1. Navigate to the backend directory:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```bash
+cd saferide_backend
+```
 
-### `npm test`
+2. Create and activate a virtual environment:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+python -m venv venv
+# On Windows
+venv\Scripts\activate
+# On macOS/Linux
+source venv/bin/activate
+```
 
-### `npm run build`
+3. Install backend dependencies:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+pip install -r requirements.txt
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+4. Apply database migrations:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+python manage.py migrate
+```
 
-### `npm run eject`
+5. Run the backend development server:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```bash
+python manage.py runserver
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+The backend API will be available at `http://127.0.0.1:8000/`.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Frontend Setup
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. Navigate to the frontend directory:
 
-## Learn More
+```bash
+cd saferide_frontend
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+2. Install frontend dependencies:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+npm install
+# or
+yarn install
+```
 
-### Code Splitting
+3. Start the frontend development server:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+```bash
+npm start
+# or
+yarn start
+```
 
-### Analyzing the Bundle Size
+The frontend app will be available at `http://localhost:3000/`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## Usage
 
-### Making a Progressive Web App
+- Upload media files (images/videos) via the frontend.
+- The AI detection runs and shows annotated media with detected violations.
+- Violations are displayed in categorized sections.
+- You can save individual violations for record-keeping.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Notes
 
-### Advanced Configuration
+- Ensure the backend server is running before starting the frontend.
+- Media files and violation images are served from the backend.
+- The project uses Tailwind CSS for styling and Framer Motion for animations.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Troubleshooting
 
-### Deployment
+- If ports 8000 or 3000 are in use, change them accordingly in backend and frontend configs.
+- For any issues with dependencies, try deleting `node_modules` and reinstalling.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## License
 
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+This project is licensed under the MIT License.
