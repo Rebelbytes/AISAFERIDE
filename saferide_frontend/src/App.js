@@ -18,7 +18,7 @@ function App() {
         {/* Navbar */}
         <nav className="bg-blue-600 p-4 text-white flex justify-between items-center shadow-md">
           <div className="flex items-center gap-2">
-            <img src="/logo192.png" alt="SafeRide" className="h-8 w-8" />
+            {/* Removed logo image */}
             <h1 className="text-xl font-bold">SafeRide</h1>
           </div>
           <div className="space-x-6">

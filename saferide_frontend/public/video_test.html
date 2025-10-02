@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video Playback Test</title>
+</head>
+<body>
+  <h1>Video Playback Test</h1>
+  <video id="testVideo" controls width="640" height="360" muted playsinline>
+    <source id="videoSource" src="" type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+
+  <script>
+    // Replace this URL with the annotated video URL from your backend
+    const videoUrl = prompt("Enter the annotated video URL to test playback:", "http://127.0.0.1:8000/media/previews/2025-10-02/annotated_xxx.mp4");
+    if (videoUrl) {
+      document.getElementById('videoSource').src = videoUrl;
+      const video = document.getElementById('testVideo');
+      video.load();
+      video.play().catch(e => {
+        console.error("Video playback error:", e);
+        alert("Video playback error: " + e.message);
+      });
+    } else {
+      alert("No video URL provided.");
+    }
+  </script>
+</body>
+</html>

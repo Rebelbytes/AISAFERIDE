@@ -77,6 +77,23 @@ export default function PreviewDetection() {
           <h1 className="text-3xl font-bold text-center flex-1">Detection Preview</h1>
         </div>
 
+        {/* Force show annotated video for testing */}
+        {annotated_media && annotated_media.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-8">
+            <h2 className="text-lg font-semibold mb-4">Annotated Video Preview (Forced)</h2>
+            <video
+              src={`http://127.0.0.1:8000${annotated_media[0]}`}
+              controls
+              muted
+              autoPlay={false}
+              playsInline
+              className="w-full h-auto rounded max-h-96 object-contain border-2 border-green-500"
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        )}
+
         {violation_types && violation_types.length > 0 ? (
           <>
             {/* Original vs Annotated Preview */}
@@ -86,7 +103,7 @@ export default function PreviewDetection() {
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
                   <h2 className="text-lg font-semibold mb-4">Original Media</h2>
                   {originalFile && originalFile.type.startsWith('video/') ? (
-                    <video src={originalPreview} controls className="w-full h-auto rounded max-h-96 object-contain">
+                    <video src={originalPreview} controls muted autoPlay className="w-full h-auto rounded max-h-96 object-contain">
                       Your browser does not support the video tag.
                     </video>
                   ) : (
@@ -95,28 +112,72 @@ export default function PreviewDetection() {
                 </div>
               )}
               {/* Annotated Media */}
-              {annotated_media && annotated_media.length > 0 && (
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
-                  <h2 className="text-lg font-semibold mb-4">Annotated Detection (with Bounding Boxes)</h2>
-                  {annotated_media[0].endsWith('.mp4') || annotated_media[0].endsWith('.avi') || annotated_media[0].endsWith('.mov') ? (
-                    <video 
-                      src={`http://127.0.0.1:8000${annotated_media[0]}`} 
-                      autoPlay 
-                      loop 
-                      muted 
-                      className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500" 
-                    >
-                      Your browser does not support the video tag.
-                    </video>
-                  ) : (
-                    <img 
-                      src={`http://127.0.0.1:8000${annotated_media[0]}`} 
-                      alt="Annotated" 
-                      className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500" 
-                    />
-                  )}
+    {annotated_media && annotated_media.length > 0 && (
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+        <h2 className="text-lg font-semibold mb-4">Annotated Detection (with Bounding Boxes)</h2>
+        {annotated_media[0].endsWith('.mp4') || annotated_media[0].endsWith('.avi') || annotated_media[0].endsWith('.mov') ? (
+          <video 
+            src={`http://127.0.0.1:8000${annotated_media[0]}`} 
+            controls 
+            muted
+            autoPlay={false}
+            playsInline
+            className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500" 
+          >
+            Your browser does not support the video tag.
+          </video>
+        ) : (
+          <img 
+            src={`http://127.0.0.1:8000${annotated_media[0]}`} 
+            alt="Annotated" 
+            className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500" 
+          />
+        )}
+      </div>
+    )}
+
+            {/* Separate Violations Sections */}
+            {["No Helmet", "Triple Riding", "Wrong Side", "Using Mobile", "Number Plate"].map((violationType) => {
+              const violationsOfType = violation_types.filter(v => v.type === violationType);
+              const imagesOfType = violation_images.filter(img => img.toLowerCase().includes(violationType.replace(' ', '_').toLowerCase()));
+              if (violationsOfType.length === 0) return null;
+              return (
+                <div key={violationType} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mt-8">
+                  <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    {violationType} Violations
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {violationsOfType.map((violation, index) => (
+                      <div key={index} className="p-3 bg-red-50 dark:bg-red-900/20 rounded border-l-4 border-red-500">
+                        <div className="font-medium mb-2">{violation.type}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                          Confidence: {(violation.confidence * 100).toFixed(1)}%
+                        </div>
+                        {imagesOfType.length > 0 && (
+                          <img
+                            src={`http://127.0.0.1:8000${imagesOfType[index] || imagesOfType[0]}`}
+                            alt={`${violation.type} violation`}
+                            className="w-full h-32 object-cover rounded border border-red-300"
+                          />
+                        )}
+                        <button
+                          onClick={() => handleSave(violation, index)}
+                          disabled={saving[index]}
+                          className="mt-2 w-full px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded flex items-center justify-center gap-1"
+                        >
+                          <Save className="w-3 h-3" />
+                          {saving[index] ? "Saving..." : "Save Violation"}
+                        </button>
+                        {savedViolations.some(sv => sv.type === violation.type && sv.confidence === violation.confidence) && (
+                          <div className="mt-1 text-xs text-green-600">Saved</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
+              );
+            })}
             </div>
 
             {/* Violations List with Images */}

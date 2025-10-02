@@ -13,6 +13,7 @@ export default function LiveDetection() {
   const [violationTypes, setViolationTypes] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [vehicleType, setVehicleType] = useState("2 wheeler");
+  const [violationCategory, setViolationCategory] = useState("general");
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function LiveDetection() {
         setIsProcessing(true);
         api.post("/live-detect/", {
           vehicle_type: vehicleType,
+          violation_category: violationCategory,
           image_base64: frameData
         })
         .then(response => {
@@ -104,6 +106,7 @@ export default function LiveDetection() {
           setIsProcessing(true);
           api.post("/live-detect/", {
             vehicle_type: vehicleType,
+            violation_category: violationCategory,
             image_base64: frameData
           })
           .then(response => {
@@ -131,7 +134,7 @@ export default function LiveDetection() {
         clearInterval(processInterval);
       }
     };
-  }, [isCameraOn, vehicleType]);
+  }, [isCameraOn, vehicleType, violationCategory]);
 
   const handleStartLive = () => {
     setIsCameraOn(true);
@@ -317,6 +320,37 @@ export default function LiveDetection() {
                 disabled={isCameraOn}
               />
               4 Wheeler
+            </label>
+          </div>
+        </div>
+
+        {/* Violation Category Selector */}
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+          <label className="block text-sm font-medium mb-2">Violation Category</label>
+          <div className="flex gap-4">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="violationCategory"
+                value="general"
+                checked={violationCategory === "general"}
+                onChange={(e) => setViolationCategory(e.target.value)}
+                className="mr-2"
+                disabled={isCameraOn}
+              />
+              General
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                name="violationCategory"
+                value="red_light"
+                checked={violationCategory === "red_light"}
+                onChange={(e) => setViolationCategory(e.target.value)}
+                className="mr-2"
+                disabled={isCameraOn}
+              />
+              Red Light
             </label>
           </div>
         </div>

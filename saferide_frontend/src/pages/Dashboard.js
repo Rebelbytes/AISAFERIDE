@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [darkMode, setDarkMode] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
   const [vehicleType, setVehicleType] = useState("");
+  const [violationCategory, setViolationCategory] = useState("general");
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +63,7 @@ export default function Dashboard() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("vehicle_type", vehicleType);
+    formData.append("violation_category", violationCategory);
 
     try {
       const response = await fetch('http://127.0.0.1:8000/api/detect/', {
@@ -139,6 +141,7 @@ export default function Dashboard() {
 
       setShowAiModal(false);
       setVehicleType("");
+      setViolationCategory("general");
       setSelectedFile(null);
       setFilePreview(null);
     } catch (error) {
@@ -313,6 +316,35 @@ export default function Dashboard() {
                 </label>
               </div>
             </div>
+            {vehicleType === "2 wheeler" && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2">Violation Type</label>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="violationCategory"
+                      value="general"
+                      checked={violationCategory === "general"}
+                      onChange={(e) => setViolationCategory(e.target.value)}
+                      className="mr-2"
+                    />
+                    General Violations (Helmet, Triple Seat, Wrong Side, Mobile)
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="violationCategory"
+                      value="red_light"
+                      checked={violationCategory === "red_light"}
+                      onChange={(e) => setViolationCategory(e.target.value)}
+                      className="mr-2"
+                    />
+                    Red Light Jumping
+                  </label>
+                </div>
+              </div>
+            )}
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2">Upload Image or Video</label>
               <input
