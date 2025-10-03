@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, AlertCircle, Save } from "lucide-react";
 import api from "../utils/api";
+import ViolationsTable from "./ViolationsTable";
 
 export default function PreviewDetection() {
   const location = useLocation();
@@ -11,6 +12,9 @@ export default function PreviewDetection() {
   const [originalPreview, setOriginalPreview] = useState(null);
   const [savedViolations, setSavedViolations] = useState([]);
   const [saving, setSaving] = useState({});
+  const [showViolationsTable, setShowViolationsTable] = useState(false);
+  
+
 
   useEffect(() => {
     if (originalFile && originalFile.type.startsWith('image/')) {
@@ -77,22 +81,7 @@ export default function PreviewDetection() {
           <h1 className="text-3xl font-bold text-center flex-1">Detection Preview</h1>
         </div>
 
-        {/* Force show annotated video for testing */}
-        {annotated_media && annotated_media.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg mb-8">
-            <h2 className="text-lg font-semibold mb-4">Annotated Video Preview (Forced)</h2>
-            <video
-              src={`http://127.0.0.1:8000${annotated_media[0]}`}
-              controls
-              muted
-              autoPlay={false}
-              playsInline
-              className="w-full h-auto rounded max-h-96 object-contain border-2 border-green-500"
-            >
-              Your browser does not support the video tag.
-            </video>
-          </div>
-        )}
+        
 
         {violation_types && violation_types.length > 0 ? (
           <>
@@ -111,6 +100,18 @@ export default function PreviewDetection() {
                   )}
                 </div>
               )}
+    {originalFile && originalFile.type.startsWith("video/") && (
+  <div className="mt-6">
+    <button
+      onClick={() => setShowViolationsTable(true)}
+      className="px-4 py-2 bg-blue-600 text-white rounded"
+    >
+      View Violations Table
+    </button>
+    {showViolationsTable && <ViolationsTable videoFile={originalFile} />}
+  </div>
+)}
+
               {/* Annotated Media */}
     {annotated_media && annotated_media.length > 0 && (
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
