@@ -25,8 +25,8 @@ violation_classes = {
     0: "number_plate",
     1: "no_helmet",
     3: "triple_riding",
-    4: "right_side",
-    5: "wrong_side",
+    4: "right-side",
+    5: "wrong-side",
     6: "using_mobile",
     7: "vehicle_no_license_plate"
 }
@@ -79,34 +79,50 @@ def detect_frame(frame):
         elif cls_id == 7:
             vehicle_no_plate.append((x1, y1, x2, y2))
         elif cls_id in [1, 3, 4, 5, 6]:
-            violations.append({
-                "type": violation_classes[cls_id],  # string label
-                "confidence": conf,
-                "bbox": (x1, y1, x2, y2)
-            })
-            print(f"Added violation: {violation_classes[cls_id]}")
+            violations.append((cls_id, conf, x1, y1, x2, y2))
 
     print(f"Total violations in frame: {len(violations)}")
 
-    if not violations:
-        return frame, []
-
-    # Draw violations on frame
+    # Draw violations and nearest number plates
     drawn_plates = set()
-    for v in violations:
-        x1, y1, x2, y2 = v["bbox"]
-        cls_id = list(violation_classes.keys())[list(violation_classes.values()).index(v["type"])]
+    for cls_id, conf, x1, y1, x2, y2 in violations:
+        label = violation_classes[cls_id]
+
+        # Combine No Helmet + Using Mobile
+        if cls_id == 1:
+            for cls2, _, x1b, y1b, x2b, y2b in violations:
+                if cls2 == 6:  # using_mobile
+                    iou_x1, iou_y1 = max(x1, x1b), max(y1, y1b)
+                    iou_x2, iou_y2 = min(x2, x2b), min(y2, y2b)
+                    if iou_x1 < iou_x2 and iou_y1 < iou_y2:
+                        label += " + Using Mobile"
+
         cv2.rectangle(frame, (x1, y1), (x2, y2), colors[cls_id], 2)
-        cv2.putText(frame, v["type"], (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[cls_id], 2)
+        cv2.putText(frame, label, (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[cls_id], 2)
 
         if plates:
-            vx, vy = (x1+x2)//2, (y1+y2)//2
-            nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0]+p[2])//2, vy - (p[1]+p[3])//2))
+            vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
+            nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
             if nearest_plate not in drawn_plates:
                 px1, py1, px2, py2 = nearest_plate
                 cv2.rectangle(frame, (px1, py1), (px2, py2), colors[0], 2)
-                cv2.putText(frame, "Number Plate", (px1, py1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[0], 2)
+                cv2.putText(frame, "Number Plate", (px1, py1 - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[0], 2)
                 drawn_plates.add(nearest_plate)
+
+    # Draw any number plates that have no associated violations
+    for px1, py1, px2, py2 in plates:
+        if (px1, py1, px2, py2) not in drawn_plates:
+            cv2.rectangle(frame, (px1, py1), (px2, py2), colors[0], 2)
+            cv2.putText(frame, "Number Plate", (px1, py1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[0], 2)
+
+    # Draw vehicle_no_license_plate boxes
+    for x1, y1, x2, y2 in vehicle_no_plate:
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colors[7], 2)
+        cv2.putText(frame, "Vehicle No License", (x1, y1 - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[7], 2)
 
     return frame, violations
 
@@ -150,6 +166,13 @@ class DetectView(APIView):
                 processed_frame, violations_in_frame = detect_frame(frame)
 
                 for violation in violations_in_frame:
+                    cls_id, conf, x1, y1, x2, y2 = violation
+                    violation_dict = {
+                        "type": violation_classes[cls_id],
+                        "confidence": conf,
+                        "bbox": (x1, y1, x2, y2)
+                    }
+
                     # Save frame image
                     frame_name = f"frame_{uuid.uuid4()}.jpg"
                     frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
@@ -159,8 +182,8 @@ class DetectView(APIView):
                     # Save each violation individually
                     violation_obj = Violation.objects.create(
                         frame_image=os.path.join("violation_frames", frame_name),
-                        violation_type=violation["type"],
-                        confidence=violation["confidence"]
+                        violation_type=violation_dict["type"],
+                        confidence=violation_dict["confidence"]
                     )
                     violations_created.append(violation_obj)
 
