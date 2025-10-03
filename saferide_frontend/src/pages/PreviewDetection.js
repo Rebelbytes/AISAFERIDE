@@ -117,21 +117,22 @@ export default function PreviewDetection() {
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
         <h2 className="text-lg font-semibold mb-4">Annotated Detection (with Bounding Boxes)</h2>
         {annotated_media[0].endsWith('.mp4') || annotated_media[0].endsWith('.avi') || annotated_media[0].endsWith('.mov') ? (
-          <video 
-            src={`http://127.0.0.1:8000${annotated_media[0]}`} 
-            controls 
+          <video
+            src={`http://127.0.0.1:8000/media/previews/output.mp4?t=${Date.now()}`}
+            controls
             muted
             autoPlay={false}
             playsInline
-            className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500" 
+            type="video/mp4"
+            className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500"
           >
             Your browser does not support the video tag.
           </video>
         ) : (
-          <img 
-            src={`http://127.0.0.1:8000${annotated_media[0]}`} 
-            alt="Annotated" 
-            className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500" 
+          <img
+            src={`http://127.0.0.1:8000${annotated_media[0]}`}
+            alt="Annotated"
+            className="w-full h-auto rounded max-h-96 object-contain border-2 border-blue-500"
           />
         )}
       </div>
@@ -265,21 +266,25 @@ export default function PreviewDetection() {
             {annotated_media && annotated_media.length > 0 && (
               <div className="mt-8">
                 <h3 className="text-lg font-semibold mb-4">Annotated Media (No Violations)</h3>
-                {annotated_media[0].endsWith('.mp4') || annotated_media[0].endsWith('.avi') || annotated_media[0].endsWith('.mov') ? (
-                  <video 
-                    src={`http://127.0.0.1:8000${annotated_media[0]}`} 
-                    autoPlay 
-                    loop 
-                    muted 
-                    className="mx-auto rounded max-w-md" 
+                {annotated_media[0].endsWith('.mp4') ||
+                 annotated_media[0].endsWith('.avi') ||
+                 annotated_media[0].endsWith('.mov') ? (
+                  <video
+                    src={`http://127.0.0.1:8000/media/previews/output.mp4?t=${Date.now()}`}
+                    autoPlay
+                    loop
+                    muted
+                    controls
+                    type="video/mp4"
+                    className="mx-auto rounded max-w-md"
                   >
                     Your browser does not support the video tag.
                   </video>
                 ) : (
-                  <img 
-                    src={`http://127.0.0.1:8000${annotated_media[0]}`} 
-                    alt="Annotated" 
-                    className="mx-auto rounded max-w-md max-h-96 object-contain" 
+                  <img
+                    src={`http://127.0.0.1:8000${annotated_media[0]}`}
+                    alt="Annotated"
+                    className="mx-auto rounded max-w-md max-h-96 object-contain"
                   />
                 )}
               </div>

@@ -135,7 +135,7 @@ class DetectView(APIView):
             preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
             os.makedirs(preview_dir, exist_ok=True)
             video_out_path = os.path.join(preview_dir, "output.mp4")
-            out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+            out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'H264'), fps, (width, height))
 
 
             frame_count = 0
