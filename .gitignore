@@ -21,16 +21,15 @@ saferide_backend/saferide_backend/__pycache__/
 # Virtual Environments
 saferide_backend/.venv/
 
-
+saferide_backend/media
 # ------------Frontend------------
 # dependencies
 saferide_frontend/node_modules/
 saferide_frontend/.pnp
 saferide_frontend/.pnp.js
+saferide_backend/db.sqlite3
 
-
-
-
+saferide_backend/media
 
 # __________NOT USED__________
 # # testing
@@ -49,3 +48,15 @@ saferide_frontend/.pnp.js
 # npm-debug.log*
 # yarn-debug.log*
 # yarn-error.log*
+# Python cache files
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+
+# SQLite database
+*.sqlite3
+
+# Media files
+media/
