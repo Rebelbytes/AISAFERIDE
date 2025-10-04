@@ -19,7 +19,7 @@ saferide_backend/accounts/__pycache__/
 saferide_backend/accounts/migrations/__pycache__/
 
 saferide_backend/saferide_backend/__pycache__/
-/saferide_backend/saferide_backend/migrations/__pycache__/
+saferide_backend/saferide_backend/migrations/__pycache__/
 
 # Virtual Environments
 saferide_backend/.venv/
