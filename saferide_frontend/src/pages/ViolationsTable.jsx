@@ -1,70 +1,153 @@
-import { useState, useEffect } from "react";
-import api from "../utils/api";
+import React, { useEffect, useState } from "react";
+import { Truck, AlertTriangle, List } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
-export default function ViolationsTable({ videoFile }) {
-  const [violations, setViolations] = useState([]);
+const ViolationsTable = () => {
+	const location = useLocation();
+	const { violationsData = [], violationImages = [] } = location.state || {};
+	const [violations, setViolations] = useState([]);
 
-  useEffect(() => {
-    const fetchViolations = async () => {
-      if (videoFile) {
-        // Upload video and get violations from it
-        const formData = new FormData();
-        formData.append("file", videoFile);
+	useEffect(() => {
+		// Map frontend data to include frame image and ID
+		const mappedViolations = violationsData.map((v, index) => ({
+			...v,
+			type: v.violation_type,
+			confidence: v.confidence || "Low Confidence",
+			frame_image: violationImages[index] || null,
+			id: index + 1, // fallback ID
+			created_at: v.timestamp || new Date().toISOString(), // use timestamp if exists
+		}));
+		setViolations(mappedViolations);
+	}, [violationsData, violationImages]);
 
-        try {
-          const res = await api.post("/api/detect/", formData, {
-            headers: { "Content-Type": "multipart/form-data" }
-          });
+	// Separate frames with and without license plates
+	const withLP = violations.filter((v) => v.license_plate_image);
+	const withoutLP = violations.filter((v) => !v.license_plate_image);
 
-          setViolations(res.data.violations || res.data); // normalize response
-        } catch (error) {
-          console.error("Error fetching violations:", error);
-        }
-      } else {
-        // Fetch all violations
-        try {
-          const res = await api.get("/api/violations/");
-          setViolations(res.data.violations || res.data);
-        } catch (error) {
-          console.error("Error fetching all violations:", error);
-        }
-      }
-    };
+	return (
+		<div className="p-6 bg-gray-50 min-h-screen font-sans">
+			<header className="mb-8 flex justify-between items-center">
+				<h1 className="text-3xl font-extrabold text-indigo-800 flex items-center">
+					<List className="w-8 h-8 mr-3" />
+					Complete Violation Log
+				</h1>
+			</header>
 
-    fetchViolations();
-  }, [videoFile]);
+			{/* Table 1: Violations with License Plate */}
+			<div className="mb-12">
+				<h2 className="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2 flex items-center">
+					<Truck className="w-6 h-6 mr-2 text-indigo-600" />
+					Violations with License Plate ({withLP.length})
+				</h2>
+				<div className="overflow-x-auto bg-white rounded-xl shadow-xl">
+					<table className="min-w-full divide-y divide-gray-200">
+						<thead className="bg-indigo-50">
+							<tr>
+								<th className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">ID</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">
+									Frame
+								</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">
+									Timestamp
+								</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">
+									Violation
+								</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">
+									Confidence
+								</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">
+									License Plate
+								</th>
+							</tr>
+						</thead>
+						<tbody className="bg-white divide-y divide-gray-200">
+							{withLP.map((v) => (
+								<tr key={v.id} className="hover:bg-gray-50 transition duration-100">
+									<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.id}</td>
+									<td className="px-6 py-4 whitespace-nowrap">
+										{v.frame_image && (
+											<img
+												src={`http://127.0.0.1:8000${v.frame_image}`}
+												alt={`Frame ${v.id}`}
+												className="w-32 h-auto rounded-md shadow-sm"
+											/>
+										)}
+									</td>
+									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+										{new Date(v.created_at).toLocaleString()}
+									</td>
+									<td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">{v.type}</td>
+									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+										{(v.confidence * 100).toFixed(1)}%
+									</td>
+									<td className="px-6 py-4 whitespace-nowrap">
+										{v.license_plate_image && (
+											<img
+												src={`http://127.0.0.1:8000${v.license_plate_image}`}
+												alt={`Plate ${v.id}`}
+												className="w-24 h-auto rounded-sm shadow-md"
+											/>
+										)}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</div>
 
-  if (!violations || violations.length === 0) {
-    return <div>No violations found.</div>;
-  }
+			{/* Table 2: Violations without License Plate */}
+			<div className="mb-12">
+				<h2 className="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2 flex items-center">
+					<AlertTriangle className="w-6 h-6 mr-2 text-red-600" />
+					Frames with Violation but No License Plate ({withoutLP.length})
+				</h2>
+				<div className="overflow-x-auto bg-white rounded-xl shadow-xl">
+					<table className="min-w-full divide-y divide-gray-200">
+						<thead className="bg-red-50">
+							<tr>
+								<th className="px-6 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">ID</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">Frame</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">
+									Timestamp
+								</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">
+									Violation
+								</th>
+								<th className="px-6 py-3 text-left text-xs font-medium text-red-700 uppercase tracking-wider">
+									Confidence
+								</th>
+							</tr>
+						</thead>
+						<tbody className="bg-white divide-y divide-gray-200">
+							{withoutLP.map((v) => (
+								<tr key={v.id} className="hover:bg-gray-50 transition duration-100">
+									<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.id}</td>
+									<td className="px-6 py-4 whitespace-nowrap">
+										{v.frame_image && (
+											<img
+												src={`http://127.0.0.1:8000${v.frame_image}`}
+												alt={`Frame ${v.id}`}
+												className="w-32 h-auto rounded-md shadow-sm"
+											/>
+										)}
+									</td>
+									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+										{new Date(v.created_at).toLocaleString()}
+									</td>
+									<td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">{v.type}</td>
+									<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+										{(v.confidence * 100).toFixed(1)}%
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+	);
+};
 
-  return (
-    <div className="p-4">
-      <h2 className="text-lg font-semibold mb-4">Detected Violations</h2>
-      <table className="table-auto w-full border border-gray-300">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border px-4 py-2">#</th>
-            <th className="border px-4 py-2">Violation Label</th>
-            <th className="border px-4 py-2">Violation Image</th>
-          </tr>
-        </thead>
-        <tbody>
-          {violations.map((violation, index) => (
-            <tr key={index} className="text-center">
-              <td className="border px-4 py-2">{index + 1}</td>
-              <td className="border px-4 py-2">{violation.violation_type}</td>
-              <td className="border px-4 py-2">
-                <img
-                  src={`http://127.0.0.1:8000/media/${violation.frame_image}`}
-                  alt={violation.violation_type}
-                  className="w-32 h-32 object-cover mx-auto rounded"
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+export default ViolationsTable;
