@@ -23,12 +23,12 @@ merged_2whe_model = YOLO(os.path.join(model_dir, "best.pt"))
 
 violation_classes = {
     0: "number_plate",
-    1: "no_helmet",
-    3: "triple_riding",
-    4: "right-side",
-    5: "wrong-side",
-    6: "using_mobile",
-    7: "vehicle_no_license_plate"
+    1: "No Helmet",
+    3: "Triple Riding",
+    4: "Right Side",
+    5: "Wrong Side",
+    6: "Using Mobile",
+    7: "Vehicle No License Plate"
 }
 
 colors = {
@@ -124,7 +124,7 @@ def detect_frame(frame):
         cv2.putText(frame, "Vehicle No License", (x1, y1 - 5),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, colors[7], 2)
 
-    return frame, violations
+    return frame, violations, plates
 
 class DetectView(APIView):
     def post(self, request):
@@ -163,7 +163,7 @@ class DetectView(APIView):
                 if frame_count % 2 != 0:
                     continue  # skip alternate frames
 
-                processed_frame, violations_in_frame = detect_frame(frame)
+                processed_frame, violations_in_frame, plates = detect_frame(frame)
 
                 for violation in violations_in_frame:
                     cls_id, conf, x1, y1, x2, y2 = violation
@@ -179,9 +179,25 @@ class DetectView(APIView):
                     os.makedirs(os.path.dirname(frame_path), exist_ok=True)
                     cv2.imwrite(frame_path, processed_frame)
 
+                    # Find nearest license plate for this violation
+                    license_plate_path = None
+                    if plates:
+                        vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
+                        nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
+                        px1, py1, px2, py2 = nearest_plate
+                        # Crop the license plate from the frame
+                        plate_crop = frame[py1:py2, px1:px2]
+                        if plate_crop.size > 0:
+                            plate_name = f"plate_{uuid.uuid4()}.jpg"
+                            plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
+                            os.makedirs(os.path.dirname(plate_path), exist_ok=True)
+                            cv2.imwrite(plate_path, plate_crop)
+                            license_plate_path = os.path.join("license_plates", plate_name)
+
                     # Save each violation individually
                     violation_obj = Violation.objects.create(
                         frame_image=os.path.join("violation_frames", frame_name),
+                        license_plate_image=license_plate_path,
                         violation_type=violation_dict["type"],
                         confidence=violation_dict["confidence"]
                     )
