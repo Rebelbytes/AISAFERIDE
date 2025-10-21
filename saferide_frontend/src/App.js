@@ -9,6 +9,7 @@ import ViolationsTable from "./pages/ViolationsTable";
 import LiveDetection from "./pages/LiveDetection";
 import SavedViolations from "./pages/SavedViolations";
 import Profile from "./pages/Profile";
+import UploadPlate from "./pages/UploadPlate";
 
 function App() {
 	const isLoggedIn = !!localStorage.getItem("access");
@@ -50,6 +51,7 @@ function App() {
 					<Route path="/live-detection" element={<LiveDetection />} />
 					<Route path="/saved-violations" element={<SavedViolations />} />
 					<Route path="/profile" element={<Profile />} />
+					<Route path="/ocr_upload" element={<UploadPlate />} />
 				</Routes>
 			</div>
 		</Router>

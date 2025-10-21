@@ -17,9 +17,21 @@ saferide_backend/*.pyd
 
 saferide_backend/accounts/__pycache__/
 saferide_backend/accounts/migrations/__pycache__/
+saferide_backend/accounts/*.pyc
+saferide_backend/accounts/*.pyo
+saferide_backend/accounts/*.pyd
+saferide_backend/accounts/migrations/*.pyc
+saferide_backend/accounts/migrations/*.pyo
+saferide_backend/accounts/migrations/*.pyd
 
 saferide_backend/saferide_backend/__pycache__/
 saferide_backend/saferide_backend/migrations/__pycache__/
+saferide_backend/saferide_backend/*.pyc
+saferide_backend/saferide_backend/*.pyo
+saferide_backend/saferide_backend/*.pyd
+saferide_backend/saferide_backend/migrations/*.pyc
+saferide_backend/saferide_backend/migrations/*.pyo
+saferide_backend/saferide_backend/migrations/*.pyd
 
 # Virtual Environments
 saferide_backend/.venv/

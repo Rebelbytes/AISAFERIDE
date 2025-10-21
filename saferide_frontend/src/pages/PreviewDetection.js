@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, AlertCircle, Save } from "lucide-react";
 import api from "../utils/api";
-import ViolationsTable from "./ViolationsTable";
 
 export default function PreviewDetection() {
 	const location = useLocation();
