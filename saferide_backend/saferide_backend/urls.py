@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.http import HttpResponse
-from .views import home, DetectView, LiveDetectView, SaveViolationView, SavedViolationsView, ViolationsListView
+from .views import *
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -30,6 +30,7 @@ urlpatterns = [
     path("api/save-violation/", SaveViolationView.as_view(), name="save_violation"),
     path("api/saved-violations/", SavedViolationsView.as_view(), name="saved_violations"),
     path("api/violations/", ViolationsListView.as_view(), name="violations_list"),
+    path('api/ocr_upload/', ProcessOCRView.as_view(), name='ocr_upload'),
 ]
 
 if settings.DEBUG:

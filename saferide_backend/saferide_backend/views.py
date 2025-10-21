@@ -1,3 +1,4 @@
+# views.py
 from django.http import JsonResponse, StreamingHttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,17 +10,27 @@ import numpy as np
 from PIL import Image
 from ultralytics import YOLO
 from inference_sdk import InferenceHTTPClient
-import tempfile
+import time
 import os
 import uuid
 from datetime import datetime
 import math
 from .models import Violation
 from .serializers import ViolationSerializer
+from .license_plate_ocr import LicensePlateOCR
+import easyocr
+from ocr_models.lprnet_helper import predict_lprnet
+import regex as re
+
 # Load models (updated for merged 2wheeler model)
 # Load YOLO model
 model_dir = os.path.join(settings.BASE_DIR.parent, "")
 merged_2whe_model = YOLO(os.path.join(model_dir, "best.pt"))
+
+# Initialize reader globally (so it doesn't reload every frame)
+reader = easyocr.Reader(['en'], gpu=True)
+# Initialize the OCR class globally
+lp_ocr = LicensePlateOCR()
 
 violation_classes = {
     0: "number_plate",
@@ -43,7 +54,7 @@ colors = {
 
 conf_thresholds = {
     0: 0.2,
-    1: 0.6,
+    1: 0.1,
     3: 0.2,
     4: 0.1,
     5: 0.1,
@@ -126,6 +137,193 @@ def detect_frame(frame):
 
     return frame, violations, plates
 
+def process_plate_all_methods(plate_crop, detection_id):
+    """Process plate using all three OCR methods with improved logic"""
+    results = {}
+    
+    # 1. LPRNet
+    print(f"[Detection {detection_id}] Running LPRNet...")
+    lprnet_text, lprnet_confidence = predict_lprnet(plate_crop)
+    
+    # Validate LPRNet output
+    lprnet_valid, lprnet_format = is_valid_indian_plate_format(lprnet_text)
+    if not lprnet_valid:
+        lprnet_confidence = 0.0
+    
+    results['lprnet'] = {
+        'text': lprnet_text,
+        'confidence': lprnet_confidence,
+        'method': 'LPRNet',
+        'is_valid': lprnet_valid,
+        'format': lprnet_format
+    }
+    
+    # 2. Enhanced Tesseract + EasyOCR
+    print(f"[Detection {detection_id}] Running Enhanced Tesseract+EasyOCR...")
+    
+    enhanced_plate = enhance_plate_image(plate_crop)
+    tesseract_text, tesseract_confidence = lp_ocr.process_plate(
+        enhanced_plate, detection_id=detection_id,
+        output_dir=os.path.join(settings.MEDIA_ROOT, "ocr_debug")
+    )
+    
+    # Validate Tesseract output
+    tesseract_valid, tesseract_format = is_valid_indian_plate_format(tesseract_text)
+    if tesseract_valid:
+        tesseract_confidence += 20
+    
+    results['tesseract_easyocr'] = {
+        'text': tesseract_text,
+        'confidence': tesseract_confidence,
+        'method': 'Tesseract+EasyOCR',
+        'is_valid': tesseract_valid,
+        'format': tesseract_format
+    }
+    
+    # Choose the best result
+    best_result = None
+    best_confidence = -1
+    
+    for method, result in results.items():
+        if result['text'] == "UNREADABLE":
+            continue
+            
+        if result['is_valid']:
+            result['confidence'] += 30
+        
+        if result['confidence'] > best_confidence:
+            best_result = result
+            best_confidence = result['confidence']
+    
+    if best_result is None and results['tesseract_easyocr']['text'] != "UNREADABLE":
+        best_result = results['tesseract_easyocr']
+        best_confidence = results['tesseract_easyocr']['confidence']
+    
+    # Print all results for comparison
+    print(f"\n=== OCR Results Comparison [Detection {detection_id}] ===")
+    for method, result in results.items():
+        status = "✓" if result['text'] != "UNREADABLE" else "✗"
+        validity = f" [{result['format']}]" if result['is_valid'] else " [INVALID]"
+        print(f"{status} {result['method']}: '{result['text']}'{validity} (Confidence: {result['confidence']:.2f}%)")
+    
+    if best_result:
+        print(f"Selected: {best_result['method']} -> '{best_result['text']}'\n")
+        return best_result['text'], best_result['confidence'], results
+    else:
+        print("No valid OCR results found\n")
+        return "UNREADABLE", 0.0, results
+
+def enhance_plate_image(plate_img):
+    """Additional preprocessing to improve OCR accuracy"""
+    try:
+        # Convert to grayscale if needed
+        if len(plate_img.shape) == 3:
+            gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = plate_img.copy()
+        
+        # 1. Resize for better character recognition
+        height, width = gray.shape
+        if height < 50:
+            scale = 100 / height
+            new_height, new_width = int(height * scale), int(width * scale)
+            gray = cv2.resize(gray, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+        
+        # 2. Apply aggressive noise removal
+        gray = cv2.medianBlur(gray, 3)
+        
+        # 3. Enhance contrast using CLAHE
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+        
+        # 4. Apply morphological operations to clean the image
+        kernel = np.ones((2, 2), np.uint8)
+        enhanced = cv2.morphologyEx(enhanced, cv2.MORPH_CLOSE, kernel)
+        enhanced = cv2.morphologyEx(enhanced, cv2.MORPH_OPEN, kernel)
+        
+        return enhanced
+        
+    except Exception as e:
+        print(f"Plate enhancement error: {e}")
+        return plate_img
+
+# REPLACE your existing is_valid_indian_plate_format function with this:
+def is_valid_indian_plate_format(text):
+    """Strict validation for Indian license plate formats with specific format matching"""
+    if not text or text == "UNREADABLE":
+        return False, "INVALID"
+    
+    # Remove spaces and special characters for validation
+    clean_text = re.sub(r'[^A-Z0-9]', '', text.upper())
+    
+    # Check length
+    if len(clean_text) < 8 or len(clean_text) > 10:
+        return False, "INVALID_LENGTH"
+    
+    # Must start with 2 letters (state code)
+    if len(clean_text) < 2 or not clean_text[:2].isalpha():
+        return False, "INVALID_STATE_CODE"
+    
+    # Must contain numbers after state code
+    if not any(c.isdigit() for c in clean_text[2:]):
+        return False, "NO_NUMBERS"
+    
+    # Count letters and numbers
+    letters = sum(c.isalpha() for c in clean_text)
+    numbers = sum(c.isdigit() for c in clean_text)
+    
+    # Typical Indian plates have 3-4 letters and 4-6 numbers
+    if letters < 3 or letters > 5 or numbers < 4 or numbers > 6:
+        return False, "INVALID_CHARACTER_RATIO"
+    
+    # Check specific patterns
+    format_match = check_specific_format(clean_text)
+    if format_match:
+        return True, format_match
+    
+    return True, "VALID_GENERIC"
+
+def check_specific_format(text):
+    """Check which specific Indian plate format the text matches"""
+    clean_text = re.sub(r'[^A-Z0-9]', '', text.upper())
+    
+    # Standard modern formats (e.g., MH12AB1234, KA01CD3456)
+    if (len(clean_text) == 10 and 
+        clean_text[:2].isalpha() and 
+        clean_text[2:4].isdigit() and 
+        clean_text[4:6].isalpha() and 
+        clean_text[6:].isdigit()):
+        return "STANDARD_MODERN"
+    
+    # Standard with single letter (e.g., TN09C1234, DL01S5678)
+    if (len(clean_text) == 9 and 
+        clean_text[:2].isalpha() and 
+        clean_text[2:4].isdigit() and 
+        clean_text[4:5].isalpha() and 
+        clean_text[5:].isdigit()):
+        return "STANDARD_SINGLE_LETTER"
+    
+    # Old format (e.g., MH041234, KA051567)
+    if (len(clean_text) == 8 and 
+        clean_text[:2].isalpha() and 
+        clean_text[2:4].isdigit() and 
+        clean_text[4:].isdigit()):
+        return "OLD_FORMAT"
+    
+    # Bharat Series (e.g., 21BH1234A, 22BH5678AB)
+    if "BH" in clean_text and len(clean_text) in [9, 10]:
+        if clean_text[2:4] == "BH":
+            return "BH_SERIES"
+    
+    # Check if it matches common patterns even if not perfect
+    if (clean_text[:2].isalpha() and 
+        any(c.isdigit() for c in clean_text[2:4]) and 
+        any(c.isalpha() for c in clean_text[4:6]) and 
+        any(c.isdigit() for c in clean_text[6:])):
+        return "VALID_MIXED_FORMAT"
+    
+    return "VALID_BASIC"
+
 class DetectView(APIView):
     def post(self, request):
         if "file" not in request.FILES:
@@ -137,7 +335,10 @@ class DetectView(APIView):
         filepath = fs.path(filename)
 
         is_video = filepath.lower().endswith(('.mp4', '.avi', '.mov'))
-        violations_created = []
+        is_image = filepath.lower().endswith(('.jpg', '.jpeg', '.png'))
+        
+        # Store results for response (without database)
+        detection_results = []
 
         if is_video:
             cap = cv2.VideoCapture(filepath)
@@ -153,7 +354,6 @@ class DetectView(APIView):
             video_out_path = os.path.join(preview_dir, "output.mp4")
             out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'H264'), fps, (width, height))
 
-
             frame_count = 0
             while cap.isOpened():
                 ret, frame = cap.read()
@@ -161,61 +361,112 @@ class DetectView(APIView):
                     break
                 frame_count += 1
                 if frame_count % 2 != 0:
-                    continue  # skip alternate frames
+                    continue
 
                 processed_frame, violations_in_frame, plates = detect_frame(frame)
 
                 for violation in violations_in_frame:
                     cls_id, conf, x1, y1, x2, y2 = violation
-                    violation_dict = {
+                    
+                    # Create violation result without database
+                    violation_result = {
                         "type": violation_classes[cls_id],
-                        "confidence": conf,
-                        "bbox": (x1, y1, x2, y2)
+                        "confidence": float(conf),
+                        "bbox": [x1, y1, x2, y2],
+                        "frame_number": frame_count
                     }
 
-                    # Save frame image
-                    frame_name = f"frame_{uuid.uuid4()}.jpg"
-                    frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
-                    os.makedirs(os.path.dirname(frame_path), exist_ok=True)
-                    cv2.imwrite(frame_path, processed_frame)
+                    license_plate_text = "UNREADABLE"
+                    ocr_score = 0
+                    ocr_method = "None"
 
                     # Find nearest license plate for this violation
-                    license_plate_path = None
                     if plates:
                         vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
-                        nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
+                        nearest_plate = min(
+                            plates, 
+                            key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2)
+                        )
                         px1, py1, px2, py2 = nearest_plate
-                        # Crop the license plate from the frame
                         plate_crop = frame[py1:py2, px1:px2]
-                        if plate_crop.size > 0:
-                            plate_name = f"plate_{uuid.uuid4()}.jpg"
-                            plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
-                            os.makedirs(os.path.dirname(plate_path), exist_ok=True)
-                            cv2.imwrite(plate_path, plate_crop)
-                            license_plate_path = os.path.join("license_plates", plate_name)
 
-                    # Save each violation individually
-                    violation_obj = Violation.objects.create(
-                        frame_image=os.path.join("violation_frames", frame_name),
-                        license_plate_image=license_plate_path,
-                        violation_type=violation_dict["type"],
-                        confidence=violation_dict["confidence"]
-                    )
-                    violations_created.append(violation_obj)
+                        if plate_crop.size > 0:
+                            # Process plate with all OCR methods
+                            license_plate_text, ocr_score, ocr_comparison = process_plate_all_methods(plate_crop, frame_count)
+                            ocr_method = ocr_comparison.get('selected_method', 'Unknown')
+
+                    # Add OCR results to violation
+                    violation_result["license_plate"] = license_plate_text
+                    violation_result["ocr_confidence"] = ocr_score
+                    violation_result["ocr_method"] = ocr_method
+                    
+                    detection_results.append(violation_result)
 
                 out.write(processed_frame)
 
             cap.release()
             out.release()
-        else:
-            return Response({"error": "Only video files supported"}, status=400)
 
-        print(f"Total violations created: {len(violations_created)}")
-        serializer = ViolationSerializer(violations_created, many=True)
-        return Response({
-            "violations": serializer.data,
-            "annotated_video": f"{settings.MEDIA_URL}previews/output.mp4"
-        })
+        elif is_image:
+            frame_count = 1
+            frame = cv2.imread(filepath)
+            if frame is None:
+                return Response({"error": "Failed to read image"}, status=400)
+
+            processed_frame, violations_in_frame, plates = detect_frame(frame)
+
+            for violation in violations_in_frame:
+                cls_id, conf, x1, y1, x2, y2 = violation
+                
+                # Create violation result without database
+                violation_result = {
+                    "type": violation_classes[cls_id],
+                    "confidence": float(conf),
+                    "bbox": [x1, y1, x2, y2],
+                    "frame_number": frame_count
+                }
+
+                license_plate_text = "UNREADABLE"
+                ocr_score = 0
+                ocr_method = "None"
+
+                # Find nearest license plate for this violation
+                if plates:
+                    vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
+                    nearest_plate = min(
+                        plates, 
+                        key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2)
+                    )
+                    px1, py1, px2, py2 = nearest_plate
+                    plate_crop = frame[py1:py2, px1:px2]
+
+                    if plate_crop.size > 0:
+                        # Process plate with all OCR methods
+                        license_plate_text, ocr_score, ocr_comparison = process_plate_all_methods(plate_crop, frame_count)
+                        ocr_method = ocr_comparison.get('selected_method', 'Unknown')
+
+                # Add OCR results to violation
+                violation_result["license_plate"] = license_plate_text
+                violation_result["ocr_confidence"] = ocr_score
+                violation_result["ocr_method"] = ocr_method
+                
+                detection_results.append(violation_result)
+
+        else:
+            return Response({"error": "Unsupported file type"}, status=400)
+
+        print(f"Total violations detected: {len(detection_results)}")
+        
+        # Prepare response data
+        response_data = {
+            "detections": detection_results,
+            "total_violations": len(detection_results)
+        }
+
+        if is_video:
+            response_data["annotated_video"] = f"{settings.MEDIA_URL}previews/output.mp4"
+
+        return Response(response_data)
 
 
 def home(request):
@@ -261,3 +512,43 @@ class ViolationsListView(APIView):
         serializer = ViolationSerializer(violations, many=True)
         return Response(serializer.data)
 
+class ProcessOCRView(APIView):
+    def post(self, request):
+        if "file" not in request.FILES:
+            return Response({"error": "No file provided"}, status=400)
+        
+        uploaded_file = request.FILES["file"]
+        
+        # Read the image
+        image_data = uploaded_file.read()
+        nparr = np.frombuffer(image_data, np.uint8)
+        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if image is None:
+            return Response({"error": "Invalid image"}, status=400)
+        
+        # Generate a unique ID for this detection
+        detection_id = f"ocr_{int(time.time())}"
+        
+        # Process with all OCR methods
+        license_plate_text, ocr_score, ocr_comparison = process_plate_all_methods(image, detection_id)
+        
+        # Return results with format information
+        response_data = {
+            "best_result": license_plate_text,
+            "confidence": ocr_score,
+            "comparison": ocr_comparison,
+            "results": []
+        }
+        
+        # Add individual method results with format info
+        for method, result in ocr_comparison.items():
+            response_data["results"].append({
+                "text": result.get('text', 'UNREADABLE'),
+                "confidence": result.get('confidence', 0),
+                "method": result.get('method', method),
+                "is_valid": result.get('is_valid', False),
+                "format": result.get('format', 'UNKNOWN')
+            })
+        
+        return Response(response_data)
