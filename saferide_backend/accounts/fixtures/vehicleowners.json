@@ -1,0 +1,35 @@
+[
+  {
+    "model": "accounts.vehicleowner",
+    "pk": 1,
+    "fields": {
+      "owner_name": "Ravi Sharma",
+      "email": "ravi.sharma@example.com",
+      "phone": "9876543210",
+      "vehicle_number": "MH12AB1234",
+      "address": "Plot 5, MG Road, Pune"
+    }
+  },
+  {
+    "model": "accounts.vehicleowner",
+    "pk": 2,
+    "fields": {
+      "owner_name": "Sangeeta Patel",
+      "email": "sangeeta.patel@example.com",
+      "phone": "9123456780",
+      "vehicle_number": "MH01CD5678",
+      "address": "Sector 7, Mumbai"
+    }
+  },
+  {
+    "model": "accounts.vehicleowner",
+    "pk": 3,
+    "fields": {
+      "owner_name": "Ajay Kumar",
+      "email": "ajay.kumar@example.com",
+      "phone": "9988776655",
+      "vehicle_number": "DL8CAF4321",
+      "address": "Block A, New Delhi"
+    }
+  }
+]
