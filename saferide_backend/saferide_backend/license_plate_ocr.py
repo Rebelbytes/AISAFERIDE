@@ -6,7 +6,7 @@ import pytesseract
 import easyocr
 import os
 import re
-import json
+import torch
 import logging
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -50,7 +50,7 @@ class LicensePlateOCR:
     def init_ocr_engines(self):
         """Initialize available OCR engines"""
         try:
-            self.easyocr_reader = easyocr.Reader(['en'], gpu=False)
+            self.easyocr_reader = easyocr.Reader(['en'], gpu=True)
             logging.info("EasyOCR initialized successfully")
         except Exception as e:
             logging.error(f"EasyOCR initialization failed: {e}")
@@ -157,15 +157,15 @@ class LicensePlateOCR:
         # Extensive config combinations
         configs = [
             # Single line configs
-            {'psm': 7, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'},
-            {'psm': 8, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'},
-            {'psm': 13, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'},
+            {'psm': 7, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
+            {'psm': 8, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
+            {'psm': 13, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
             # Single word configs  
-            {'psm': 8, 'oem': 3},
-            {'psm': 10, 'oem': 3},
+            {'psm': 8, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
+            {'psm': 10, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
             # Sparse text configs
-            {'psm': 11, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'},
-            {'psm': 12, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'},
+            {'psm': 11, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
+            {'psm': 12, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
         ]
         
         for variant_name, img in img_variants.items():
@@ -211,57 +211,13 @@ class LicensePlateOCR:
         
         return results
 
-    def aggressive_easyocr(self, img_variants):
-        """Aggressive EasyOCR with multiple parameter sets"""
-        results = []
-        
-        param_sets = [
-            {'width_ths': 0.1, 'height_ths': 0.1, 'min_size': 5, 'text_threshold': 0.1},
-            {'width_ths': 0.3, 'height_ths': 0.3, 'min_size': 10, 'text_threshold': 0.2},
-            {'width_ths': 0.5, 'height_ths': 0.5, 'min_size': 15, 'text_threshold': 0.3},
-            {'width_ths': 0.7, 'height_ths': 0.7, 'min_size': 20, 'text_threshold': 0.4},
-        ]
-        
-        for variant_name, img in img_variants.items():
-            for params in param_sets:
-                try:
-                    ocr_result = self.easyocr_reader.readtext(
-                        img,
-                        allowlist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-                        **params
-                    )
-                    
-                    if ocr_result:
-                        # Combine all detected text
-                        all_text = ' '.join([result[1] for result in ocr_result if result[1].strip()])
-                        confidences = [result[2] for result in ocr_result if result[1].strip()]
-                        avg_conf = np.mean(confidences) if confidences else 0
-                        
-                        if all_text and len(all_text.replace(' ', '')) >= 4:  # Reduced from 6 to 4
-                            cleaned_text = self.correct_common_errors(all_text)
-                            results.append({
-                                'engine': 'easyocr',
-                                'variant': variant_name,
-                                'config': f"width{params['width_ths']}",
-                                'text': cleaned_text,
-                                'confidence': avg_conf * 100,
-                                'raw_text': all_text
-                            })
-                            
-                except Exception as e:
-                    continue
-        
-        return results
-
     def tesseract_ocr(self, img_variants):
         """Optimized Tesseract OCR with relaxed state-code filtering"""
         results = []
         configs = [
-            {'psm': 7, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'},
-            {'psm': 6, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'},
-            {'psm': 8, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'},
-            {'psm': 11, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'},
-            {'psm': 4, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'},
+            {'psm': 7, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
+            {'psm': 6, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
+            {'psm': 4, 'oem': 3, 'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-./'},
         ]
 
         for variant_name, img in img_variants.items():
@@ -310,7 +266,48 @@ class LicensePlateOCR:
                 except Exception as e:
                     logging.warning(f"Tesseract OCR failed for variant {variant_name}: {e}")
                     continue
+        return results
 
+    def aggressive_easyocr(self, img_variants):
+        """Aggressive EasyOCR with multiple parameter sets"""
+        results = []
+        
+        param_sets = [
+            {'width_ths': 0.1, 'height_ths': 0.1, 'min_size': 5, 'text_threshold': 0.1},
+            {'width_ths': 0.3, 'height_ths': 0.3, 'min_size': 10, 'text_threshold': 0.2},
+            {'width_ths': 0.5, 'height_ths': 0.5, 'min_size': 15, 'text_threshold': 0.3},
+            {'width_ths': 0.7, 'height_ths': 0.7, 'min_size': 20, 'text_threshold': 0.4},
+        ]
+        
+        for variant_name, img in img_variants.items():
+            for params in param_sets:
+                try:
+                    ocr_result = self.easyocr_reader.readtext(
+                        img,
+                        allowlist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-./',
+                        **params
+                    )
+                    
+                    if ocr_result:
+                        # Combine all detected text
+                        all_text = ' '.join([result[1] for result in ocr_result if result[1].strip()])
+                        confidences = [result[2] for result in ocr_result if result[1].strip()]
+                        avg_conf = np.mean(confidences) if confidences else 0
+                        
+                        if all_text and len(all_text.replace(' ', '')) >= 4:
+                            cleaned_text = self.correct_common_errors(all_text)
+                            results.append({
+                                'engine': 'easyocr',
+                                'variant': variant_name,
+                                'config': f"width{params['width_ths']}",
+                                'text': cleaned_text,
+                                'confidence': avg_conf * 100,
+                                'raw_text': all_text
+                            })
+                            
+                except Exception as e:
+                    continue
+        
         return results
 
     def easyocr_ocr(self, img_variants):
@@ -331,7 +328,7 @@ class LicensePlateOCR:
                 try:
                     ocr_result = self.easyocr_reader.readtext(
                         img,
-                        allowlist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-',
+                        allowlist='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-/.',
                         **params
                     )
                     
@@ -341,7 +338,7 @@ class LicensePlateOCR:
                         confidences = [result[2] for result in ocr_result if result[1].strip()]
                         avg_conf = np.mean(confidences) if confidences else 0
                         
-                        if len(all_text.replace(' ', '').replace('-', '')) >= 4:  # Reduced from 6 to 4
+                        if len(all_text.replace(' ', '').replace('-', '')) >= 6:
                             cleaned_text = self.clean_and_format_text(all_text, avg_conf * 100)
                             
                             # RELAXED STATE FILTERING
@@ -372,7 +369,7 @@ class LicensePlateOCR:
         """Group OCR text data by lines"""
         valid_items = []
         for i in range(len(data['text'])):
-            if int(data['conf'][i]) > 0:  # Reduced from 10 to 0
+            if int(data['conf'][i]) > 0:
                 text = data['text'][i].strip()
                 if text:
                     valid_items.append({

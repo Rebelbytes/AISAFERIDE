@@ -9,7 +9,6 @@ import cv2
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
-from inference_sdk import InferenceHTTPClient
 import time
 import os
 import uuid
@@ -19,7 +18,6 @@ from .models import Violation
 from .serializers import ViolationSerializer
 from .license_plate_ocr import LicensePlateOCR
 import easyocr
-from ocr_models.lprnet_helper import predict_lprnet
 import regex as re
 
 # Load models (updated for merged 2wheeler model)
@@ -27,8 +25,6 @@ import regex as re
 model_dir = os.path.join(settings.BASE_DIR.parent, "")
 merged_2whe_model = YOLO(os.path.join(model_dir, "best.pt"))
 
-# Initialize reader globally (so it doesn't reload every frame)
-reader = easyocr.Reader(['en'], gpu=True)
 # Initialize the OCR class globally
 lp_ocr = LicensePlateOCR()
 
@@ -138,46 +134,63 @@ def detect_frame(frame):
     return frame, violations, plates
 
 def process_plate_all_methods(plate_crop, detection_id):
-    """Process plate using all three OCR methods with improved logic"""
+    """Process plate using only Tesseract and EasyOCR methods - LPRNet removed"""
     results = {}
     
-    # 1. LPRNet
-    print(f"[Detection {detection_id}] Running LPRNet...")
-    lprnet_text, lprnet_confidence = predict_lprnet(plate_crop)
-    
-    # Validate LPRNet output
-    lprnet_valid, lprnet_format = is_valid_indian_plate_format(lprnet_text)
-    if not lprnet_valid:
-        lprnet_confidence = 0.0
-    
-    results['lprnet'] = {
-        'text': lprnet_text,
-        'confidence': lprnet_confidence,
-        'method': 'LPRNet',
-        'is_valid': lprnet_valid,
-        'format': lprnet_format
-    }
-    
-    # 2. Enhanced Tesseract + EasyOCR
-    print(f"[Detection {detection_id}] Running Enhanced Tesseract+EasyOCR...")
-    
-    enhanced_plate = enhance_plate_image(plate_crop)
-    tesseract_text, tesseract_confidence = lp_ocr.process_plate(
-        enhanced_plate, detection_id=detection_id,
-        output_dir=os.path.join(settings.MEDIA_ROOT, "ocr_debug")
-    )
+    # 1. Aggressive Tesseract Only
+    print(f"[Detection {detection_id}] Running Aggressive Tesseract...")
+    tesseract_text, tesseract_confidence = process_with_aggressive_tesseract_only(plate_crop, detection_id)
     
     # Validate Tesseract output
     tesseract_valid, tesseract_format = is_valid_indian_plate_format(tesseract_text)
     if tesseract_valid:
         tesseract_confidence += 20
     
-    results['tesseract_easyocr'] = {
+    results['tesseract'] = {
         'text': tesseract_text,
         'confidence': tesseract_confidence,
-        'method': 'Tesseract+EasyOCR',
+        'method': 'Tesseract',
         'is_valid': tesseract_valid,
         'format': tesseract_format
+    }
+    
+    # 2. Aggressive EasyOCR Only
+    print(f"[Detection {detection_id}] Running Aggressive EasyOCR...")
+    easyocr_text, easyocr_confidence = process_with_aggressive_easyocr_only(plate_crop, detection_id)
+    
+    # Validate EasyOCR output
+    easyocr_valid, easyocr_format = is_valid_indian_plate_format(easyocr_text)
+    if easyocr_valid:
+        easyocr_confidence += 20
+    
+    results['easyocr'] = {
+        'text': easyocr_text,
+        'confidence': easyocr_confidence,
+        'method': 'EasyOCR',
+        'is_valid': easyocr_valid,
+        'format': easyocr_format
+    }
+    
+    # 3. Combined Tesseract+EasyOCR (existing method)
+    print(f"[Detection {detection_id}] Running Combined Tesseract+EasyOCR...")
+    
+    # Use the existing process_plate method which combines all approaches
+    combined_text, combined_confidence = lp_ocr.process_plate(
+        plate_crop, detection_id=detection_id,
+        output_dir=os.path.join(settings.MEDIA_ROOT, "ocr_debug")
+    )
+    
+    # Validate Combined output
+    combined_valid, combined_format = is_valid_indian_plate_format(combined_text)
+    if combined_valid:
+        combined_confidence += 20
+    
+    results['combined'] = {
+        'text': combined_text,
+        'confidence': combined_confidence,
+        'method': 'Combined',
+        'is_valid': combined_valid,
+        'format': combined_format
     }
     
     # Choose the best result
@@ -195,9 +208,10 @@ def process_plate_all_methods(plate_crop, detection_id):
             best_result = result
             best_confidence = result['confidence']
     
-    if best_result is None and results['tesseract_easyocr']['text'] != "UNREADABLE":
-        best_result = results['tesseract_easyocr']
-        best_confidence = results['tesseract_easyocr']['confidence']
+    # Fallback: if no valid result, use combined if available
+    if best_result is None and results['combined']['text'] != "UNREADABLE":
+        best_result = results['combined']
+        best_confidence = results['combined']['confidence']
     
     # Print all results for comparison
     print(f"\n=== OCR Results Comparison [Detection {detection_id}] ===")
@@ -212,40 +226,72 @@ def process_plate_all_methods(plate_crop, detection_id):
     else:
         print("No valid OCR results found\n")
         return "UNREADABLE", 0.0, results
-
-def enhance_plate_image(plate_img):
-    """Additional preprocessing to improve OCR accuracy"""
+    
+def process_with_aggressive_tesseract_only(plate_crop, detection_id):
+    """Process plate using only aggressive Tesseract OCR"""
     try:
-        # Convert to grayscale if needed
-        if len(plate_img.shape) == 3:
-            gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
+        # Use the existing preprocessing from license_plate_ocr
+        img_variants = lp_ocr.preprocess_plate_image(plate_crop)
+        
+        # Run aggressive Tesseract only
+        tesseract_results = lp_ocr.aggressive_tesseract_ocr(img_variants)
+        
+        if not tesseract_results:
+            return "UNREADABLE", 0.0
+        
+        # Score and pick best Tesseract result
+        best_tesseract = None
+        best_score = -1
+        
+        for result in tesseract_results:
+            cleaned_text = result['text']
+            score = lp_ocr.score_license_plate(cleaned_text, result['confidence'])
+            
+            if score > best_score:
+                best_score = score
+                best_tesseract = result
+        
+        if best_tesseract:
+            return best_tesseract['text'], best_tesseract['confidence']
         else:
-            gray = plate_img.copy()
-        
-        # 1. Resize for better character recognition
-        height, width = gray.shape
-        if height < 50:
-            scale = 100 / height
-            new_height, new_width = int(height * scale), int(width * scale)
-            gray = cv2.resize(gray, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
-        
-        # 2. Apply aggressive noise removal
-        gray = cv2.medianBlur(gray, 3)
-        
-        # 3. Enhance contrast using CLAHE
-        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
-        
-        # 4. Apply morphological operations to clean the image
-        kernel = np.ones((2, 2), np.uint8)
-        enhanced = cv2.morphologyEx(enhanced, cv2.MORPH_CLOSE, kernel)
-        enhanced = cv2.morphologyEx(enhanced, cv2.MORPH_OPEN, kernel)
-        
-        return enhanced
-        
+            return "UNREADABLE", 0.0
+            
     except Exception as e:
-        print(f"Plate enhancement error: {e}")
-        return plate_img
+        print(f"Aggressive Tesseract error: {e}")
+        return "UNREADABLE", 0.0
+
+def process_with_aggressive_easyocr_only(plate_crop, detection_id):
+    """Process plate using only aggressive EasyOCR"""
+    try:
+        # Use the existing preprocessing from license_plate_ocr
+        img_variants = lp_ocr.preprocess_plate_image(plate_crop)
+        
+        # Run aggressive EasyOCR only
+        easyocr_results = lp_ocr.aggressive_easyocr(img_variants)
+        
+        if not easyocr_results:
+            return "UNREADABLE", 0.0
+        
+        # Score and pick best EasyOCR result
+        best_easyocr = None
+        best_score = -1
+        
+        for result in easyocr_results:
+            cleaned_text = result['text']
+            score = lp_ocr.score_license_plate(cleaned_text, result['confidence'])
+            
+            if score > best_score:
+                best_score = score
+                best_easyocr = result
+        
+        if best_easyocr:
+            return best_easyocr['text'], best_easyocr['confidence']
+        else:
+            return "UNREADABLE", 0.0
+            
+    except Exception as e:
+        print(f"Aggressive EasyOCR error: {e}")
+        return "UNREADABLE", 0.0
 
 # REPLACE your existing is_valid_indian_plate_format function with this:
 def is_valid_indian_plate_format(text):
@@ -336,9 +382,7 @@ class DetectView(APIView):
 
         is_video = filepath.lower().endswith(('.mp4', '.avi', '.mov'))
         is_image = filepath.lower().endswith(('.jpg', '.jpeg', '.png'))
-        
-        # Store results for response (without database)
-        detection_results = []
+        violations_created = []
 
         if is_video:
             cap = cv2.VideoCapture(filepath)
@@ -361,46 +405,48 @@ class DetectView(APIView):
                     break
                 frame_count += 1
                 if frame_count % 2 != 0:
-                    continue
+                    continue  # skip alternate frames
 
                 processed_frame, violations_in_frame, plates = detect_frame(frame)
 
                 for violation in violations_in_frame:
                     cls_id, conf, x1, y1, x2, y2 = violation
-                    
-                    # Create violation result without database
-                    violation_result = {
+                    violation_dict = {
                         "type": violation_classes[cls_id],
-                        "confidence": float(conf),
-                        "bbox": [x1, y1, x2, y2],
+                        "confidence": conf,
+                        "bbox": (x1, y1, x2, y2),
                         "frame_number": frame_count
                     }
 
-                    license_plate_text = "UNREADABLE"
-                    ocr_score = 0
-                    ocr_method = "None"
+                    # Save frame image
+                    frame_name = f"frame_{uuid.uuid4()}.jpg"
+                    frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                    os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                    cv2.imwrite(frame_path, processed_frame)
 
                     # Find nearest license plate for this violation
+                    license_plate_path = None
                     if plates:
                         vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
-                        nearest_plate = min(
-                            plates, 
-                            key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2)
-                        )
+                        nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
                         px1, py1, px2, py2 = nearest_plate
+                        # Crop the license plate from the frame
                         plate_crop = frame[py1:py2, px1:px2]
-
                         if plate_crop.size > 0:
-                            # Process plate with all OCR methods
-                            license_plate_text, ocr_score, ocr_comparison = process_plate_all_methods(plate_crop, frame_count)
-                            ocr_method = ocr_comparison.get('selected_method', 'Unknown')
+                            plate_name = f"plate_{uuid.uuid4()}.jpg"
+                            plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
+                            os.makedirs(os.path.dirname(plate_path), exist_ok=True)
+                            cv2.imwrite(plate_path, plate_crop)
+                            license_plate_path = os.path.join("license_plates", plate_name)
 
-                    # Add OCR results to violation
-                    violation_result["license_plate"] = license_plate_text
-                    violation_result["ocr_confidence"] = ocr_score
-                    violation_result["ocr_method"] = ocr_method
-                    
-                    detection_results.append(violation_result)
+                    # Save each violation individually
+                    violation_obj = Violation.objects.create(
+                        frame_image=os.path.join("violation_frames", frame_name),
+                        license_plate_image=license_plate_path,
+                        violation_type=violation_dict["type"],
+                        confidence=violation_dict["confidence"]
+                    )
+                    violations_created.append(violation_obj)
 
                 out.write(processed_frame)
 
@@ -417,57 +463,56 @@ class DetectView(APIView):
 
             for violation in violations_in_frame:
                 cls_id, conf, x1, y1, x2, y2 = violation
-                
-                # Create violation result without database
-                violation_result = {
+                violation_dict = {
                     "type": violation_classes[cls_id],
-                    "confidence": float(conf),
-                    "bbox": [x1, y1, x2, y2],
-                    "frame_number": frame_count
+                    "confidence": conf,
+                    "bbox": (x1, y1, x2, y2)
                 }
 
-                license_plate_text = "UNREADABLE"
-                ocr_score = 0
-                ocr_method = "None"
+                # Save frame image
+                frame_name = f"frame_{uuid.uuid4()}.jpg"
+                frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                cv2.imwrite(frame_path, processed_frame)
 
                 # Find nearest license plate for this violation
+                license_plate_path = None
                 if plates:
                     vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
-                    nearest_plate = min(
-                        plates, 
-                        key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2)
-                    )
+                    nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
                     px1, py1, px2, py2 = nearest_plate
+                    # Crop the license plate from the frame
                     plate_crop = frame[py1:py2, px1:px2]
-
                     if plate_crop.size > 0:
-                        # Process plate with all OCR methods
-                        license_plate_text, ocr_score, ocr_comparison = process_plate_all_methods(plate_crop, frame_count)
-                        ocr_method = ocr_comparison.get('selected_method', 'Unknown')
+                        plate_name = f"plate_{uuid.uuid4()}.jpg"
+                        plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
+                        os.makedirs(os.path.dirname(plate_path), exist_ok=True)
+                        cv2.imwrite(plate_path, plate_crop)
+                        license_plate_path = os.path.join("license_plates", plate_name)
 
-                # Add OCR results to violation
-                violation_result["license_plate"] = license_plate_text
-                violation_result["ocr_confidence"] = ocr_score
-                violation_result["ocr_method"] = ocr_method
-                
-                detection_results.append(violation_result)
+                # Save each violation individually
+                violation_obj = Violation.objects.create(
+                    frame_image=os.path.join("violation_frames", frame_name),
+                    license_plate_image=license_plate_path,
+                    violation_type=violation_dict["type"],
+                    confidence=violation_dict["confidence"]
+                )
+                violations_created.append(violation_obj)
 
         else:
             return Response({"error": "Unsupported file type"}, status=400)
 
-        print(f"Total violations detected: {len(detection_results)}")
+        print(f"Total violations created: {len(violations_created)}")
+        serializer = ViolationSerializer(violations_created, many=True)
         
-        # Prepare response data
         response_data = {
-            "detections": detection_results,
-            "total_violations": len(detection_results)
+            "violations": serializer.data,
         }
 
         if is_video:
             response_data["annotated_video"] = f"{settings.MEDIA_URL}previews/output.mp4"
 
         return Response(response_data)
-
 
 def home(request):
     return JsonResponse({"message": "Welcome to Saferide Backend"})
@@ -513,6 +558,7 @@ class ViolationsListView(APIView):
         return Response(serializer.data)
 
 class ProcessOCRView(APIView):
+    pass
     def post(self, request):
         if "file" not in request.FILES:
             return Response({"error": "No file provided"}, status=400)
