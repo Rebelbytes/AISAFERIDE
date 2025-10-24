@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Truck, AlertTriangle, List } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Truck, AlertTriangle, List, Send } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const ViolationsTable = () => {
 	const location = useLocation();
+	const navigate = useNavigate();
 	const { violationsData = [], violationImages = [] } = location.state || {};
 	const [violations, setViolations] = useState([]);
 
@@ -23,6 +24,14 @@ const ViolationsTable = () => {
 	// Separate frames with and without license plates
 	const withLP = violations.filter((v) => v.license_plate_image);
 	const withoutLP = violations.filter((v) => !v.license_plate_image);
+
+	const handleSendToOCR = (plateImage) => {
+		navigate("/ocr_upload", {
+			state: {
+				autoProcessImage: `http://127.0.0.1:8000${plateImage}`,
+			},
+		});
+	};
 
 	return (
 		<div className="p-6 bg-gray-50 min-h-screen font-sans">
@@ -83,11 +92,19 @@ const ViolationsTable = () => {
 									</td>
 									<td className="px-6 py-4 whitespace-nowrap">
 										{v.license_plate_image && (
-											<img
-												src={`http://127.0.0.1:8000${v.license_plate_image}`}
-												alt={`Plate ${v.id}`}
-												className="w-24 h-auto rounded-sm shadow-md"
-											/>
+											<div className="flex flex-col items-center gap-2">
+												<img
+													src={`http://127.0.0.1:8000${v.license_plate_image}`}
+													alt={`Plate ${v.id}`}
+													className="w-24 h-auto rounded-sm shadow-md"
+												/>
+												<button
+													onClick={() => handleSendToOCR(v.license_plate_image)}
+													className="bg-indigo-600 text-white text-xs px-3 py-1 rounded-md hover:bg-indigo-700 transition"
+												>
+													Send to OCR
+												</button>
+											</div>
 										)}
 									</td>
 								</tr>
