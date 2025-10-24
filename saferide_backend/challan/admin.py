@@ -1,4 +1,13 @@
 from django.contrib import admin
 from .models import Challan
-admin.site.register(Challan)
-# Register your models here.
+
+
+@admin.register(Challan)
+class ChallanAdmin(admin.ModelAdmin):
+	list_display = ("id", "vehicle_number", "violation_type", "fine_amount", "status", "date_issued")
+	search_fields = ("vehicle_number", "violation_type", "owner__owner_name")
+	list_filter = ("status", "date_issued")
+
+	class Meta:
+		model = Challan
+                                                                                                
