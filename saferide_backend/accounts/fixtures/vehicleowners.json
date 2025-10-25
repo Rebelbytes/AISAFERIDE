@@ -31,5 +31,16 @@
       "vehicle_number": "DL8CAF4321",
       "address": "Block A, New Delhi"
     }
+  },
+  {
+    "model": "accounts.vehicleowner",
+    "pk": 4,
+    "fields": {
+      "owner_name": "Radhika M",
+      "email": "radhikampra@gmail.com",
+      "phone": "9876543210",
+      "vehicle_number": "TN09AQ7834",
+      "address": "Chennai, Tamil Nadu"
+    }
   }
 ]

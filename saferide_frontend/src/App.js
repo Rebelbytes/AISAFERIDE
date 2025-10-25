@@ -10,6 +10,7 @@ import LiveDetection from "./pages/LiveDetection";
 import SavedViolations from "./pages/SavedViolations";
 import Profile from "./pages/Profile";
 import UploadPlate from "./pages/UploadPlate";
+import ChallanGeneration from "./pages/ChallanGeneration";
 
 function App() {
 	const isLoggedIn = !!localStorage.getItem("access");
@@ -52,6 +53,7 @@ function App() {
 					<Route path="/saved-violations" element={<SavedViolations />} />
 					<Route path="/profile" element={<Profile />} />
 					<Route path="/ocr_upload" element={<UploadPlate />} />
+					<Route path="/challan-generation" element={<ChallanGeneration />} />
 				</Routes>
 			</div>
 		</Router>

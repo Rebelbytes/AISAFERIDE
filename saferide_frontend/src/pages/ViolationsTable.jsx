@@ -25,10 +25,11 @@ const ViolationsTable = () => {
 	const withLP = violations.filter((v) => v.license_plate_image);
 	const withoutLP = violations.filter((v) => !v.license_plate_image);
 
-	const handleSendToOCR = (plateImage) => {
+	const handleSendToOCR = (plateImage, violationType) => {
 		navigate("/ocr_upload", {
 			state: {
 				autoProcessImage: `http://127.0.0.1:8000${plateImage}`,
+				violationType: violationType,
 			},
 		});
 	};
@@ -99,7 +100,7 @@ const ViolationsTable = () => {
 													className="w-24 h-auto rounded-sm shadow-md"
 												/>
 												<button
-													onClick={() => handleSendToOCR(v.license_plate_image)}
+													onClick={() => handleSendToOCR(v.license_plate_image, v.type)}
 													className="bg-indigo-600 text-white text-xs px-3 py-1 rounded-md hover:bg-indigo-700 transition"
 												>
 													Send to OCR
