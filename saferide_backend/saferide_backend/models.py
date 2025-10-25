@@ -8,6 +8,5 @@ class Violation(models.Model):
     confidence = models.FloatField()
     created_at = models.DateTimeField(auto_now_add=True)
 
-
     def __str__(self):
         return f"Violation {self.id} - {self.violation_type}"
