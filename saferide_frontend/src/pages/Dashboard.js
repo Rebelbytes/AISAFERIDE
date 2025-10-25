@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -17,11 +17,47 @@ import {
 	Upload,
 	Loader2,
 	Image,
+	Shield,
+	TrendingUp,
+	Calendar,
+	AlertTriangle,
 } from "lucide-react";
+import {
+	BarChart,
+	Bar,
+	XAxis,
+	YAxis,
+	CartesianGrid,
+	Tooltip,
+	Legend,
+	LineChart,
+	Line,
+	PieChart,
+	Pie,
+	Cell,
+	ResponsiveContainer,
+} from "recharts";
 import api from "../utils/api";
+
+// Predefined distinct colors for pie chart matching dashboard theme
+const colors = [
+	'hsl(210, 70%, 50%)', // Blue
+	'hsl(240, 70%, 50%)', // Indigo
+	'hsl(270, 70%, 50%)', // Purple
+	'hsl(300, 70%, 50%)', // Magenta
+	'hsl(330, 70%, 50%)', // Pink
+	'hsl(180, 70%, 50%)', // Cyan
+	'hsl(150, 70%, 50%)', // Teal
+	'hsl(120, 70%, 50%)', // Green
+	'hsl(90, 70%, 50%)', // Lime
+	'hsl(60, 70%, 50%)', // Yellow
+	'hsl(30, 70%, 50%)', // Orange
+	'hsl(0, 70%, 50%)', // Red
+];
 
 export default function Dashboard() {
 	const [darkMode, setDarkMode] = useState(false);
+	const [activeSection, setActiveSection] = useState("dashboard");
 	const [showAiModal, setShowAiModal] = useState(false);
 	const [vehicleType, setVehicleType] = useState("");
 	const [violationCategory, setViolationCategory] = useState("general");
@@ -30,8 +66,47 @@ export default function Dashboard() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [progress, setProgress] = useState(0);
 	const [logs, setLogs] = useState([]);
+	const [analyticsData, setAnalyticsData] = useState(null);
+	const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
 	const navigate = useNavigate();
+
+	// Fetch analytics data when analytics section is active
+	useEffect(() => {
+		if (activeSection === "analytics") {
+			fetchAnalyticsData();
+		}
+	}, [activeSection]);
+
+	const fetchAnalyticsData = async () => {
+		setLoadingAnalytics(true);
+		try {
+			const response = await fetch("http://127.0.0.1:8000/api/analytics/", {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			});
+
+			if (!response.ok) {
+				throw new Error("Failed to fetch analytics data");
+			}
+
+			const data = await response.json();
+			setAnalyticsData(data);
+		} catch (error) {
+			console.error("Error fetching analytics:", error);
+			// Set empty data on error
+			setAnalyticsData({
+				total_violations: 0,
+				violations_by_type: {},
+				violations_by_date: {},
+				detailed_violations: []
+			});
+		} finally {
+			setLoadingAnalytics(false);
+		}
+	};
 
 	const handleFileChange = (e) => {
 		const file = e.target.files[0];
@@ -194,96 +269,539 @@ export default function Dashboard() {
 
 	return (
 		<div className={`${darkMode ? "dark" : ""}`}>
-			<div className="flex min-h-screen transition-colors duration-500 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-				{/* Sidebar */}
-				<aside className="w-64 bg-white dark:bg-gray-800 shadow-lg p-6 flex flex-col transition-colors duration-500">
-					<h1 className="text-2xl font-bold mb-8 flex items-center gap-2">
-						<LayoutDashboard className="w-6 h-6 text-indigo-600 animate-bounce" />
-						Dashboard
-					</h1>
-					<nav className="flex-1">
-						<ul className="space-y-4">
-							<li className="flex items-center gap-3 text-blue-600 font-semibold cursor-pointer hover:text-blue-800">
-								<LayoutDashboard className="w-5 h-5" /> Dashboard
-							</li>
-							<li
-								className="flex items-center gap-3 cursor-pointer hover:text-blue-800"
-								onClick={() => navigate("/saved-violations")}
-							>
-								<Image className="w-5 h-5" /> Saved Violations
-							</li>
-							<li
-								className="flex items-center gap-3 cursor-pointer hover:text-blue-800"
-								onClick={() => navigate("/profile")}
-							>
-								<Users className="w-5 h-5" /> Profile
-							</li>
-							<li className="flex items-center gap-3 cursor-pointer hover:text-blue-800">
-								<BarChart3 className="w-5 h-5" /> Analytics
-							</li>
-							<li className="flex items-center gap-3 cursor-pointer hover:text-blue-800">
-								<Info className="w-5 h-5" /> About
-							</li>
-						</ul>
-					</nav>
-					<button className="flex items-center gap-2 text-red-600 hover:text-red-800 font-semibold mt-6">
-						<LogOut className="w-5 h-5" /> Logout
-					</button>
-				</aside>
-
-				{/* Main Content */}
-				<main className="flex-1 p-8">
-					{/* Dark/Light Mode Toggle */}
-					<div className="flex justify-end mb-4">
-						<button
-							onClick={() => setDarkMode(!darkMode)}
-							className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-						>
-							{darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5 text-gray-900" />}
-							{darkMode ? "Light Mode" : "Dark Mode"}
-						</button>
-					</div>
-
-					{/* Hero / Project Info Section */}
+			{/* Top Header */}
+			<header className="bg-gradient-to-r from-blue-500 to-purple-600 shadow-xl p-4 flex items-center justify-between relative z-10">
+				<div className="flex items-center gap-3">
 					<motion.div
-						initial={{ opacity: 0, y: -30 }}
-						animate={{ opacity: 1, y: 0 }}
-						transition={{ duration: 1 }}
-						className="mb-12 text-center"
+						whileHover={{ scale: 1.1, boxShadow: "0 0 20px rgba(255,255,255,0.5)" }}
+						whileTap={{ scale: 0.95 }}
+						className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg cursor-pointer"
 					>
-						<h2 className="text-3xl md:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 animate-gradient-x">
-							SafeRide - AI Enabled Smart Road Safety Violation Detection And Monitoring System Using Neural Vision
-						</h2>
-						<p className="mt-4 text-gray-700 dark:text-gray-300 max-w-2xl mx-auto">
-							Monitor traffic in real-time, detect violations using AI, and automate e-challans to improve road safety
-							efficiently.
-						</p>
+						<Shield className="w-6 h-6 text-white" />
 					</motion.div>
+					<motion.h1
+						whileHover={{ scale: 1.05 }}
+						className="text-2xl md:text-3xl font-bold text-white cursor-pointer"
+					>
 
-					{/* Features Grid */}
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-						{features.map((feature, idx) => (
-							<motion.div
-								key={idx}
-								initial={{ opacity: 0, y: 30 }}
-								whileHover={{ scale: 1.05 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: idx * 0.2, type: "spring", stiffness: 120 }}
-								className="relative bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg hover:shadow-2xl cursor-pointer border-l-4 border-indigo-500 overflow-hidden group transition-colors duration-500"
-								onClick={
-									idx === 0 ? () => navigate("/live-detection") : idx === 1 ? () => setShowAiModal(true) : undefined
-								}
-							>
-								<div className="absolute inset-0 bg-gradient-to-r from-indigo-100 via-purple-100 to-pink-100 opacity-0 group-hover:opacity-25 transition-opacity rounded-xl"></div>
-								<div className="flex items-center gap-3 mb-3 relative z-10">
-									{feature.icon}
-									<h3 className="text-lg font-semibold">{feature.title}</h3>
+					</motion.h1>
+				</div>
+				{/* Dark/Light Mode Toggle in Header */}
+				<motion.button
+					whileHover={{ scale: 1.05 }}
+					whileTap={{ scale: 0.95 }}
+					onClick={() => setDarkMode(!darkMode)}
+					className="flex items-center justify-center gap-3 p-3 rounded-xl bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all duration-300 shadow-lg"
+				>
+					{darkMode ? <Sun className="w-5 h-5 text-yellow-400 animate-spin" /> : <Moon className="w-5 h-5 text-blue-200 animate-pulse" />}
+					<span className="font-medium text-white">{darkMode ? "Light Mode" : "Dark Mode"}</span>
+				</motion.button>
+			</header>
+
+			<div className="min-h-screen transition-colors duration-500 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 text-gray-900 dark:text-gray-100 relative overflow-hidden">
+				{/* Animated Background Elements */}
+				<div className="absolute inset-0 overflow-hidden pointer-events-none">
+					<div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-full blur-3xl animate-pulse"></div>
+					<div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-indigo-500/30 to-pink-500/30 rounded-full blur-3xl animate-pulse delay-1000"></div>
+					<div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-full blur-3xl animate-pulse delay-500"></div>
+					{/* Additional light mode elements */}
+					<div className="absolute top-20 left-20 w-64 h-64 bg-gradient-to-br from-yellow-400/20 to-orange-400/20 rounded-full blur-2xl animate-bounce delay-300"></div>
+					<div className="absolute bottom-20 right-20 w-48 h-48 bg-gradient-to-tl from-green-400/25 to-teal-400/25 rounded-full blur-2xl animate-pulse delay-700"></div>
+				</div>
+
+				<div className="flex flex-1">
+					{/* Sidebar */}
+					<aside className="w-64 h-screen bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl p-6 flex flex-col transition-all duration-500 border-r border-white/20 dark:border-gray-700/50 relative z-10">
+						{/* Sidebar Navigation */}
+						<nav className="flex-1">
+							<ul className="space-y-2">
+								<li
+									className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-300 group ${activeSection === "dashboard"
+										? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105"
+										: "hover:bg-white/60 dark:hover:bg-gray-700/60 hover:shadow-lg hover:transform hover:scale-102"
+										}`}
+									onClick={() => setActiveSection("dashboard")}
+								>
+									<LayoutDashboard className={`w-5 h-5 transition-transform duration-300 ${activeSection === "dashboard" ? "rotate-12" : "group-hover:rotate-12"}`} />
+									<span className="font-medium">Dashboard</span>
+								</li>
+								<li
+									className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-300 group ${activeSection === "saved-violations"
+										? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105"
+										: "hover:bg-white/60 dark:hover:bg-gray-700/60 hover:shadow-lg hover:transform hover:scale-102"
+										}`}
+									onClick={() => {
+										setActiveSection("saved-violations");
+										navigate("/saved-violations");
+									}}
+								>
+									<Image className={`w-5 h-5 transition-transform duration-300 ${activeSection === "saved-violations" ? "rotate-12" : "group-hover:rotate-12"}`} />
+									<span className="font-medium">Saved Violations</span>
+								</li>
+								<li
+									className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-300 group ${activeSection === "profile"
+										? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105"
+										: "hover:bg-white/60 dark:hover:bg-gray-700/60 hover:shadow-lg hover:transform hover:scale-102"
+										}`}
+									onClick={() => {
+										setActiveSection("profile");
+										navigate("/profile");
+									}}
+								>
+									<Users className={`w-5 h-5 transition-transform duration-300 ${activeSection === "profile" ? "rotate-12" : "group-hover:rotate-12"}`} />
+									<span className="font-medium">Profile</span>
+								</li>
+								<li
+									className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-300 group ${activeSection === "analytics"
+										? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105"
+										: "hover:bg-white/60 dark:hover:bg-gray-700/60 hover:shadow-lg hover:transform hover:scale-102"
+										}`}
+									onClick={() => setActiveSection("analytics")}
+								>
+									<BarChart3 className={`w-5 h-5 transition-transform duration-300 ${activeSection === "analytics" ? "rotate-12" : "group-hover:rotate-12"}`} />
+									<span className="font-medium">Analytics</span>
+								</li>
+								<li
+									className={`flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all duration-300 group ${activeSection === "about"
+										? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105"
+										: "hover:bg-white/60 dark:hover:bg-gray-700/60 hover:shadow-lg hover:transform hover:scale-102"
+										}`}
+									onClick={() => setActiveSection("about")}
+								>
+									<Info className={`w-5 h-5 transition-transform duration-300 ${activeSection === "about" ? "rotate-12" : "group-hover:rotate-12"}`} />
+									<span className="font-medium">About</span>
+								</li>
+							</ul>
+						</nav>
+
+						<button className="flex items-center gap-3 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold p-4 rounded-xl transition-all duration-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:shadow-lg transform hover:scale-105">
+							<LogOut className="w-5 h-5" />
+							<span>Logout</span>
+						</button>
+					</aside>
+
+					{/* Main Content */}
+					<main className="flex-1 p-8 relative z-10">
+
+						{/* Conditional Content Based on Active Section */}
+						{activeSection === "dashboard" && (
+							<>
+								{/* Hero / Project Info Section */}
+								<motion.div
+									initial={{ opacity: 0, y: -30 }}
+									animate={{ opacity: 1, y: 0 }}
+									transition={{ duration: 1 }}
+									className="mb-12 text-center"
+								>
+									<motion.div
+										whileHover={{
+											scale: 1.2
+										}}
+										whileTap={{ scale: 0.85 }}
+										className="inline-flex items-center gap-4 cursor-pointer transition-all duration-500 mb-6"
+									>
+										<div className="relative">
+											<Shield className="w-12 h-12 text-blue-900 drop-shadow-2xl" />
+										</div>
+										<h2 className="text-4xl md:text-5xl font-extrabold text-blue-900 flex">
+											{"SafeRide".split("").map((letter, index) => (
+												<motion.span
+													key={index}
+													initial={{ opacity: 0, y: 20 }}
+													animate={{ opacity: 1, y: 0 }}
+													transition={{
+														delay: index * 0.1,
+														duration: 0.5,
+														type: "spring",
+														stiffness: 120
+													}}
+													className="inline-block"
+												>
+													{letter}
+												</motion.span>
+											))}
+										</h2>
+									</motion.div>
+									<p className="mt-4 text-gray-700 dark:text-gray-300 max-w-2xl mx-auto text-lg">
+										Monitor traffic in real-time, detect violations using AI, and automate e-challans to improve road safety
+										efficiently.
+									</p>
+								</motion.div>
+
+								{/* Features Grid */}
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+									{features.map((feature, idx) => (
+										<motion.div
+											key={idx}
+											initial={{ opacity: 0, y: 30 }}
+											whileHover={{ scale: 1.02 }}
+											animate={{ opacity: 1, y: 0 }}
+											transition={{ delay: idx * 0.2, type: "spring", stiffness: 120 }}
+											className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-4 rounded-xl shadow-xl hover:shadow-2xl cursor-pointer border border-white/20 dark:border-gray-700/50 overflow-hidden group transition-all duration-500 transform-gpu"
+											onClick={
+												idx === 0 ? () => navigate("/live-detection") : idx === 1 ? () => setShowAiModal(true) : undefined
+											}
+										>
+											{/* Animated gradient border */}
+											<div className="absolute inset-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 p-[2px]">
+												<div className="w-full h-full bg-white/95 dark:bg-gray-800/95 rounded-xl"></div>
+											</div>
+
+											{/* Floating particles effect */}
+											<div className="absolute inset-0 overflow-hidden rounded-xl">
+												<div className="absolute top-2 right-2 w-1 h-1 bg-blue-400 rounded-full animate-ping opacity-20"></div>
+												<div className="absolute bottom-2 left-2 w-0.5 h-0.5 bg-purple-400 rounded-full animate-pulse opacity-30 delay-300"></div>
+												<div className="absolute top-1/2 left-1/2 w-0.5 h-0.5 bg-pink-400 rounded-full animate-bounce opacity-25 delay-700"></div>
+											</div>
+
+											<div className="relative z-10">
+												{/* Icon with glow effect */}
+												<div className="mb-2 transform group-hover:scale-110 transition-transform duration-300">
+													<div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 rounded-lg flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+														{feature.icon}
+													</div>
+												</div>
+
+												<h3 className="text-base font-bold mb-1 bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+													{feature.title}
+												</h3>
+												<p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors duration-300">
+													{feature.description}
+												</p>
+
+												{/* Action indicator */}
+												<div className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+													<span>Click to explore</span>
+													<svg className="w-3 h-3 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+													</svg>
+												</div>
+											</div>
+										</motion.div>
+									))}
 								</div>
-								<p className="relative z-10">{feature.description}</p>
+							</>
+						)}
+
+						{activeSection === "analytics" && (
+							<motion.div
+								initial={{ opacity: 0, y: 20 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ duration: 0.5 }}
+								className="space-y-8"
+							>
+								{/* Analytics Header */}
+								<div className="text-center mb-8">
+									<motion.h2
+										initial={{ scale: 0.9 }}
+										animate={{ scale: 1 }}
+										className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2"
+									>
+										Analytics Dashboard
+									</motion.h2>
+									<p className="text-gray-600 dark:text-gray-400">
+										Comprehensive insights into traffic violations and safety metrics
+									</p>
+								</div>
+
+								{loadingAnalytics ? (
+									<div className="flex items-center justify-center py-12">
+										<Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+										<span className="ml-2 text-gray-600 dark:text-gray-400">Loading analytics...</span>
+									</div>
+								) : analyticsData ? (
+									<>
+										{/* Key Metrics Cards */}
+										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+											<motion.div
+												initial={{ opacity: 0, y: 20 }}
+												animate={{ opacity: 1, y: 0 }}
+												transition={{ delay: 0.1 }}
+												className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+											>
+												<div className="flex items-center gap-4">
+													<div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-lg flex items-center justify-center">
+														<AlertTriangle className="w-6 h-6 text-white" />
+													</div>
+													<div>
+														<h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+															{analyticsData.total_violations || 0}
+														</h3>
+														<p className="text-gray-600 dark:text-gray-400">Total Violations</p>
+													</div>
+												</div>
+											</motion.div>
+
+											<motion.div
+												initial={{ opacity: 0, y: 20 }}
+												animate={{ opacity: 1, y: 0 }}
+												transition={{ delay: 0.2 }}
+												className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+											>
+												<div className="flex items-center gap-4">
+													<div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+														<TrendingUp className="w-6 h-6 text-white" />
+													</div>
+													<div>
+														<h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+															{(analyticsData.violations_by_type || []).length}
+														</h3>
+														<p className="text-gray-600 dark:text-gray-400">Violation Types</p>
+													</div>
+												</div>
+											</motion.div>
+
+											<motion.div
+												initial={{ opacity: 0, y: 20 }}
+												animate={{ opacity: 1, y: 0 }}
+												transition={{ delay: 0.3 }}
+												className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+											>
+												<div className="flex items-center gap-4">
+													<div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-lg flex items-center justify-center">
+														<Shield className="w-6 h-6 text-white" />
+													</div>
+													<div>
+														<h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+															{(() => {
+																const violations = analyticsData.violations_by_type || [];
+																if (violations.length === 0) return 'N/A';
+																const mostCommon = violations.reduce((max, current) =>
+																	current.value > max.value ? current : max
+																);
+																return mostCommon.label.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+															})()}
+														</h3>
+														<p className="text-gray-600 dark:text-gray-400">Most Common Violation</p>
+													</div>
+												</div>
+											</motion.div>
+
+											<motion.div
+												initial={{ opacity: 0, y: 20 }}
+												animate={{ opacity: 1, y: 0 }}
+												transition={{ delay: 0.4 }}
+												className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+											>
+												<div className="flex items-center gap-4">
+													<div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+														<Calendar className="w-6 h-6 text-white" />
+													</div>
+													<div>
+														<h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+															{Object.keys(analyticsData.violations_by_date || {}).length}
+														</h3>
+														<p className="text-gray-600 dark:text-gray-400">Active Days</p>
+													</div>
+												</div>
+											</motion.div>
+										</div>
+
+										{/* Charts Section */}
+										<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+											{/* Violations by Type Pie Chart */}
+											<motion.div
+												initial={{ opacity: 0, x: -20 }}
+												animate={{ opacity: 1, x: 0 }}
+												transition={{ delay: 0.4 }}
+												className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+											>
+												<h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+													Violations by Type
+												</h3>
+												<ResponsiveContainer width="100%" height={300}>
+													<PieChart>
+														<Pie
+															data={(analyticsData.violations_by_type || []).map((item, index) => ({
+																name: item.label.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+																value: item.value,
+																fill: colors[index % colors.length]
+															}))}
+															cx="50%"
+															cy="50%"
+															labelLine={false}
+															label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+															outerRadius={100}
+															fill="#8884d8"
+															dataKey="value"
+														>
+															{(analyticsData.violations_by_type || []).map((entry, index) => (
+																<Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+															))}
+														</Pie>
+														<Tooltip
+															contentStyle={{
+																backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+																border: '1px solid #374151',
+																borderRadius: '8px'
+															}}
+														/>
+													</PieChart>
+												</ResponsiveContainer>
+											</motion.div>
+
+											{/* Violations by Date and Time Bar Chart */}
+											<motion.div
+												initial={{ opacity: 0, x: 20 }}
+												animate={{ opacity: 1, x: 0 }}
+												transition={{ delay: 0.5 }}
+												className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+											>
+												<h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+													Violations by Date and Time
+												</h3>
+												<ResponsiveContainer width="100%" height={300}>
+													<BarChart
+														data={(() => {
+															const dateMap = new Map();
+															const getTimeSection = (hour) => {
+																if (hour >= 6 && hour < 12) return 'Morning';
+																if (hour >= 12 && hour < 18) return 'Afternoon';
+																if (hour >= 18 && hour < 24) return 'Evening';
+																return 'Night';
+															};
+															(analyticsData.detailed_violations || []).forEach(violation => {
+																if (violation.timestamp) {
+																	const date = new Date(violation.timestamp);
+																	const dateStr = date.toLocaleDateString();
+																	const hour = date.getHours();
+																	const section = getTimeSection(hour);
+																	if (!dateMap.has(dateStr)) {
+																		dateMap.set(dateStr, { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 });
+																	}
+																	dateMap.get(dateStr)[section] += 1;
+																}
+															});
+															return Array.from(dateMap.entries())
+																.sort(([a], [b]) => new Date(a) - new Date(b))
+																.map(([date, sections]) => ({
+																	date,
+																	...sections
+																}));
+														})()}
+													>
+														<CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+														<XAxis
+															dataKey="date"
+															stroke="#6B7280"
+															fontSize={12}
+														/>
+														<YAxis stroke="#6B7280" />
+														<Tooltip
+															contentStyle={{
+																backgroundColor: darkMode ? '#1F2937' : '#FFFFFF',
+																border: '1px solid #374151',
+																borderRadius: '8px',
+																padding: '12px'
+															}}
+															labelStyle={{ color: darkMode ? '#F9FAFB' : '#111827', fontWeight: 'bold', marginBottom: '8px' }}
+															formatter={(value, name) => [
+																value,
+																name
+															]}
+															labelFormatter={(label) => `Date: ${label}`}
+														/>
+														<Legend
+															wrapperStyle={{ paddingTop: '20px' }}
+														/>
+														<Bar
+															dataKey="Morning"
+															stackId="a"
+															fill="#3B82F6"
+															radius={[2, 2, 0, 0]}
+														/>
+														<Bar
+															dataKey="Afternoon"
+															stackId="a"
+															fill="#10B981"
+															radius={[2, 2, 0, 0]}
+														/>
+														<Bar
+															dataKey="Evening"
+															stackId="a"
+															fill="#F59E0B"
+															radius={[2, 2, 0, 0]}
+														/>
+														<Bar
+															dataKey="Night"
+															stackId="a"
+															fill="#EF4444"
+															radius={[2, 2, 0, 0]}
+														/>
+													</BarChart>
+												</ResponsiveContainer>
+											</motion.div>
+										</div>
+
+										{/* Recent Violations Table */}
+										<motion.div
+											initial={{ opacity: 0, y: 20 }}
+											animate={{ opacity: 1, y: 0 }}
+											transition={{ delay: 0.6 }}
+											className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 rounded-xl shadow-xl border border-white/20 dark:border-gray-700/50"
+										>
+											<h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+												Recent Violations
+											</h3>
+											<div className="overflow-x-auto">
+												<table className="w-full text-sm">
+													<thead>
+														<tr className="border-b border-gray-200 dark:border-gray-700">
+															<th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Type</th>
+															<th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Date</th>
+															<th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Time</th>
+															<th className="text-left py-3 px-4 font-semibold text-gray-900 dark:text-gray-100">Confidence</th>
+														</tr>
+													</thead>
+													<tbody>
+														{(analyticsData.detailed_violations || [])
+															.slice(0, 10)
+															.map((violation, index) => (
+																<tr key={index} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+																	<td className="py-3 px-4 text-gray-900 dark:text-gray-100">
+																		{violation.violation_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A'}
+																	</td>
+																	<td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+																		{violation.timestamp ? new Date(violation.timestamp).toLocaleDateString() : 'N/A'}
+																	</td>
+																	<td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+																		{violation.timestamp ? new Date(violation.timestamp).toLocaleTimeString() : 'N/A'}
+																	</td>
+																	<td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+																		{violation.confidence ? `${(violation.confidence * 100).toFixed(1)}%` : 'N/A'}
+																	</td>
+																</tr>
+															))}
+														{(analyticsData.detailed_violations || []).length === 0 && (
+															<tr>
+																<td colSpan="4" className="py-8 text-center text-gray-500 dark:text-gray-400">
+																	No violations recorded yet
+																</td>
+															</tr>
+														)}
+													</tbody>
+												</table>
+											</div>
+										</motion.div>
+									</>
+								) : (
+									<div className="text-center py-12">
+										<p className="text-gray-600 dark:text-gray-400">Failed to load analytics data</p>
+									</div>
+								)}
 							</motion.div>
-						))}
-					</div>
-				</main>
+						)}
+
+						{activeSection === "about" && (
+							<div className="text-center">
+								<h2 className="text-3xl font-bold mb-4">About SafeRide</h2>
+								<p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+									SafeRide is an AI-powered traffic violation detection system designed to enhance road safety through automated monitoring and e-challan generation.
+								</p>
+							</div>
+						)}
+					</main>
+				</div>
 			</div>
 
 			{/* AI Detection Modal */}
@@ -305,7 +823,7 @@ export default function Dashboard() {
 							</button>
 						</div>
 						<p className="mb-4 text-gray-700 dark:text-gray-300">
-							Please select 2 wheeler and upload an image or video.
+							Please select vehicle type and upload an image or video.
 						</p>
 						<div className="mb-4">
 							<label className="block text-sm font-medium mb-2">Vehicle Type</label>
@@ -319,18 +837,7 @@ export default function Dashboard() {
 										onChange={(e) => setVehicleType(e.target.value)}
 										className="mr-2"
 									/>
-									2 Wheeler
-								</label>
-								<label className="flex items-center">
-									<input
-										type="radio"
-										name="vehicleType"
-										value="4 wheeler"
-										checked={vehicleType === "4 wheeler"}
-										onChange={(e) => setVehicleType(e.target.value)}
-										className="mr-2"
-									/>
-									4 Wheeler
+									2 & 4 Wheeler
 								</label>
 							</div>
 						</div>

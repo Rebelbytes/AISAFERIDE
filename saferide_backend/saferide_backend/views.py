@@ -333,7 +333,7 @@ def check_specific_format(text):
     """Check which specific Indian plate format the text matches"""
     clean_text = re.sub(r'[^A-Z0-9]', '', text.upper())
     
-    # Standard modern formats (e.g., MH12AB1234, KA01CD3456)
+    # Standard modern formats (e.g., , KA01CD3456)
     if (len(clean_text) == 10 and 
         clean_text[:2].isalpha() and 
         clean_text[2:4].isdigit() and 
@@ -556,6 +556,50 @@ class ViolationsListView(APIView):
         violations = Violation.objects.all().order_by('-created_at')
         serializer = ViolationSerializer(violations, many=True)
         return Response(serializer.data)
+
+class AnalyticsView(APIView):
+    def get(self, request):
+        violations = Violation.objects.all()
+
+        # Total violations
+        total_violations = violations.count()
+
+        # Violations by type for pie chart
+        violations_by_type = []
+        type_counts = {}
+        for violation in violations:
+            v_type = violation.violation_type
+            type_counts[v_type] = type_counts.get(v_type, 0) + 1
+
+        for v_type, count in type_counts.items():
+            violations_by_type.append({
+                'label': v_type,
+                'value': count
+            })
+
+        # Violations by date
+        violations_by_date = {}
+        for violation in violations:
+            date = violation.created_at.date().isoformat()
+            violations_by_date[date] = violations_by_date.get(date, 0) + 1
+
+        # Detailed violations for table
+        detailed_violations = []
+        for violation in violations.order_by('-created_at')[:10]:  # Last 10 violations
+            detailed_violations.append({
+                'violation_type': violation.violation_type,
+                'timestamp': violation.created_at.isoformat(),
+                'confidence': violation.confidence
+            })
+
+        data = {
+            'total_violations': total_violations,
+            'violations_by_type': violations_by_type,
+            'violations_by_date': violations_by_date,
+            'detailed_violations': detailed_violations
+        }
+
+        return Response(data)
 
 class ProcessOCRView(APIView):
     pass

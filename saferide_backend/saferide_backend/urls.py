@@ -30,6 +30,7 @@ urlpatterns = [
     path("api/save-violation/", SaveViolationView.as_view(), name="save_violation"),
     path("api/saved-violations/", SavedViolationsView.as_view(), name="saved_violations"),
     path("api/violations/", ViolationsListView.as_view(), name="violations_list"),
+    path("api/analytics/", AnalyticsView.as_view(), name="analytics"),
     path('api/ocr_upload/', ProcessOCRView.as_view(), name='ocr_upload'),
 ]
 

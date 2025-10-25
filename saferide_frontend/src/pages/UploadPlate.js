@@ -203,21 +203,21 @@ export default function OCRUpload() {
 			// Mock data for demonstration
 			results.push(
 				{
-					text: "MH12AB1234",
+					text: "TN01AQ7834",
 					confidence: 88.5,
 					method: "Tesseract",
 					isValid: true,
 					format: "STANDARD_MODERN",
 				},
 				{
-					text: "MH 12 AB 1234",
+					text: "TN 09 AQ 7834",
 					confidence: 82.2,
 					method: "EasyOCR",
 					isValid: true,
 					format: "STANDARD_SINGLE_LETTER_SPACED",
 				},
 				{
-					text: "MH12AB1234",
+					text: "TN01AQ7834",
 					confidence: 94.1,
 					method: "Combined",
 					isValid: true,
