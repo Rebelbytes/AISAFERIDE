@@ -14,6 +14,7 @@ import {
 	AlertCircle,
 	Crown,
 	Info,
+	FileText,
 } from "lucide-react";
 import api from "../utils/api";
 
@@ -34,6 +35,9 @@ export default function OCRUpload() {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editedText, setEditedText] = useState("");
 	const [copiedMethod, setCopiedMethod] = useState("");
+	
+	// Challan states
+	const [violationType, setViolationType] = useState("");
 
 	// Auto-process image from violations table
 	useEffect(() => {
@@ -61,6 +65,11 @@ export default function OCRUpload() {
 			};
 
 			processAutoImage();
+		}
+		
+		// Set violation type from location state
+		if (location.state?.violationType) {
+			setViolationType(location.state.violationType);
 		}
 	}, [location.state]);
 
@@ -258,6 +267,24 @@ export default function OCRUpload() {
 		} catch (err) {
 			console.error("Failed to copy text: ", err);
 		}
+	};
+
+	const generateChallan = async () => {
+		// Use edited text if available, otherwise use best result
+		const licensePlateNumber = editedText || bestResult;
+		
+		if (!licensePlateNumber || !violationType) {
+			alert("Please ensure license plate is recognized and violation type is available");
+			return;
+		}
+
+		// Navigate to challan generation page with data
+		navigate("/challan-generation", {
+			state: {
+				licensePlateNumber: licensePlateNumber,
+				violationType: violationType,
+			},
+		});
 	};
 
 	const clearAll = () => {
@@ -483,6 +510,34 @@ export default function OCRUpload() {
 										</>
 									)}
 								</div>
+
+								{/* Generate Challan Button */}
+								{violationType && (
+									<div className="mt-4">
+										<button
+											onClick={generateChallan}
+											className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center gap-2 font-semibold"
+										>
+											<FileText className="w-5 h-5" />
+											Generate Challan
+										</button>
+										{violationType && (
+											<div className="text-sm text-gray-600 dark:text-gray-400 mt-2 text-center space-y-1">
+												<p>
+													Violation: <span className="font-semibold text-red-600">{violationType}</span>
+												</p>
+												<p>
+													License Plate: <span className="font-semibold text-blue-600">
+														{editedText || bestResult}
+													</span>
+													{editedText && editedText !== bestResult && (
+														<span className="text-xs text-green-600 ml-1">(edited)</span>
+													)}
+												</p>
+											</div>
+										)}
+									</div>
+								)}
 							</motion.div>
 						)}
 					</div>

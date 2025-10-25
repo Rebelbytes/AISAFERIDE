@@ -2,9 +2,13 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-# ocr_config.py
-import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+
+# OCR configuration - only import if available
+try:
+    import pytesseract
+    pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+except ImportError:
+    pass  # pytesseract not available, skip OCR configuration
 
 
 def main():

@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import Challan
+from accounts.models import VehicleOwner
 
 
 @admin.register(Challan)
@@ -10,4 +11,14 @@ class ChallanAdmin(admin.ModelAdmin):
 
 	class Meta:
 		model = Challan
+
+
+@admin.register(VehicleOwner)
+class VehicleOwnerAdmin(admin.ModelAdmin):
+	list_display = ("owner_name", "vehicle_number", "email", "phone")
+	search_fields = ("owner_name", "vehicle_number", "email")
+	list_filter = ("created_at",)
+
+	class Meta:
+		model = VehicleOwner
                                                                                                 
