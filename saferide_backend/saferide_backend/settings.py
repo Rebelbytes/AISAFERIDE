@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'accounts',
     'challan',
+    'echallan',
     'saferide_backend',
 ]
 
@@ -145,3 +146,15 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',
     ],
 }
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Gmail SMTP server
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'pradhanradhika282@gmail.com'  # Replace with your Gmail
+EMAIL_HOST_PASSWORD = 'vkco exyb mtnm uyiv'  # Replace with your Gmail App Password
+DEFAULT_FROM_EMAIL = 'pradhanradhika282@gmail.com'  # Replace with your Gmail
+
+# For development/testing, you can use console backend
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
