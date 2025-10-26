@@ -26,6 +26,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("accounts.urls")),  # ✅ now it will find accounts/urls.py
     path("api/challan/", include("challan.urls")),  # Add challan URLs
+    path("api/echallan/", include("echallan.urls")),  # Add eChallan URLs
     path("api/detect/", DetectView.as_view(), name="detect"),
     path("api/live-detect/", LiveDetectView.as_view(), name="live_detect"),
     path("api/save-violation/", SaveViolationView.as_view(), name="save_violation"),
