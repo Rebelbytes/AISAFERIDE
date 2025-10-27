@@ -71,6 +71,13 @@ export default function Dashboard() {
 
 	const navigate = useNavigate();
 
+	// Check if user is logged in, redirect to login if not
+	useEffect(() => {
+		if (!localStorage.getItem("access")) {
+			navigate("/login");
+		}
+	}, [navigate]);
+
 	// Fetch analytics data when analytics section is active
 	useEffect(() => {
 		if (activeSection === "analytics") {
@@ -374,7 +381,13 @@ export default function Dashboard() {
 							</ul>
 						</nav>
 
-						<button className="flex items-center gap-3 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold p-4 rounded-xl transition-all duration-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:shadow-lg transform hover:scale-105">
+						<button
+							onClick={() => {
+								localStorage.removeItem("access");
+								navigate("/login");
+							}}
+							className="flex items-center gap-3 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold p-4 rounded-xl transition-all duration-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:shadow-lg transform hover:scale-105"
+						>
 							<LogOut className="w-5 h-5" />
 							<span>Logout</span>
 						</button>
