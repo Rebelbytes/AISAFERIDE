@@ -399,6 +399,10 @@ class DetectView(APIView):
             out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'H264'), fps, (width, height))
 
             frame_count = 0
+            unique_violations = []  # Track unique violations with spatial and temporal tolerance
+            spatial_tolerance = 80  # pixels tolerance for considering violations as the same spatially
+            frame_gap = 15  # minimum frames between same violation type
+
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
@@ -418,35 +422,60 @@ class DetectView(APIView):
                         "frame_number": frame_count
                     }
 
-                    # Save frame image
-                    frame_name = f"frame_{uuid.uuid4()}.jpg"
-                    frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
-                    os.makedirs(os.path.dirname(frame_path), exist_ok=True)
-                    cv2.imwrite(frame_path, processed_frame)
+                    # Calculate center of current violation
+                    current_center_x = (x1 + x2) // 2
+                    current_center_y = (y1 + y2) // 2
 
-                    # Find nearest license plate for this violation
-                    license_plate_path = None
-                    if plates:
-                        vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
-                        nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
-                        px1, py1, px2, py2 = nearest_plate
-                        # Crop the license plate from the frame
-                        plate_crop = frame[py1:py2, px1:px2]
-                        if plate_crop.size > 0:
-                            plate_name = f"plate_{uuid.uuid4()}.jpg"
-                            plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
-                            os.makedirs(os.path.dirname(plate_path), exist_ok=True)
-                            cv2.imwrite(plate_path, plate_crop)
-                            license_plate_path = os.path.join("license_plates", plate_name)
+                    # Check if this violation is similar to any previously detected
+                    is_duplicate = False
+                    for existing_violation in unique_violations:
+                        existing_center_x = (existing_violation['bbox'][0] + existing_violation['bbox'][2]) // 2
+                        existing_center_y = (existing_violation['bbox'][1] + existing_violation['bbox'][3]) // 2
 
-                    # Save each violation individually
-                    violation_obj = Violation.objects.create(
-                        frame_image=os.path.join("violation_frames", frame_name),
-                        license_plate_image=license_plate_path,
-                        violation_type=violation_dict["type"],
-                        confidence=violation_dict["confidence"]
-                    )
-                    violations_created.append(violation_obj)
+                        # Check spatial proximity and temporal gap
+                        spatial_match = (abs(current_center_x - existing_center_x) <= spatial_tolerance and
+                                       abs(current_center_y - existing_center_y) <= spatial_tolerance)
+                        temporal_gap = (frame_count - existing_violation['frame_number']) >= frame_gap
+
+                        # If same type, spatially close, and not enough temporal separation
+                        if (existing_violation['type'] == violation_dict['type'] and
+                            spatial_match and not temporal_gap):
+                            is_duplicate = True
+                            break
+
+                    if not is_duplicate:
+                        # Find nearest license plate for this violation
+                        license_plate_path = None
+                        if plates:
+                            vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
+                            nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
+                            px1, py1, px2, py2 = nearest_plate
+                            # Crop the license plate from the frame
+                            plate_crop = frame[py1:py2, px1:px2]
+                            if plate_crop.size > 0:
+                                plate_name = f"plate_{uuid.uuid4()}.jpg"
+                                plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
+                                os.makedirs(os.path.dirname(plate_path), exist_ok=True)
+                                cv2.imwrite(plate_path, plate_crop)
+                                license_plate_path = os.path.join("license_plates", plate_name)
+
+                        # Add to unique violations list
+                        unique_violations.append(violation_dict)
+
+                        # Save frame image
+                        frame_name = f"frame_{uuid.uuid4()}.jpg"
+                        frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                        os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                        cv2.imwrite(frame_path, processed_frame)
+
+                        # Save each violation individually
+                        violation_obj = Violation.objects.create(
+                            frame_image=os.path.join("violation_frames", frame_name),
+                            license_plate_image=license_plate_path,
+                            violation_type=violation_dict["type"],
+                            confidence=violation_dict["confidence"]
+                        )
+                        violations_created.append(violation_obj)
 
                 out.write(processed_frame)
 
