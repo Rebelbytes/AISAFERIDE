@@ -18,7 +18,7 @@ from .models import Violation
 from .serializers import ViolationSerializer
 from .license_plate_ocr import LicensePlateOCR
 import easyocr
-import regex as re
+import re
 
 # Load models (updated for merged 2wheeler model)
 # Load YOLO model
