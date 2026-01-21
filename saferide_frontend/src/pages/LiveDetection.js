@@ -33,13 +33,13 @@ export default function LiveDetection() {
           setIsProcessing(true);
 
           // 1) RAW FEED (LEFT)
-          const rawRes = await api.get("/stream/raw/");
+          const rawRes = await api.get("stream/raw/");
           if (rawRes.data?.status === "ok" && rawRes.data?.image_base64) {
             setRawImage(rawRes.data.image_base64);
           }
 
           // 2) ANNOTATED FEED (RIGHT)
-          const annRes = await api.get("/stream/annotated/");
+          const annRes = await api.get("stream/annotated/");
           if (annRes.data?.status === "ok" && annRes.data?.annotated_image_base64) {
             setAnnotatedImage(annRes.data.annotated_image_base64);
             setViolationTypes(annRes.data.violation_types || []);
