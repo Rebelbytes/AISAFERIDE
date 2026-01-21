@@ -19,11 +19,16 @@ from .serializers import ViolationSerializer
 from .license_plate_ocr import LicensePlateOCR
 import easyocr
 import re
+import torch
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load models (updated for merged 2wheeler model)
 # Load YOLO model
-model_dir = os.path.join(settings.BASE_DIR.parent, "")
-merged_2whe_model = YOLO(os.path.join(model_dir, "best.pt"))
+model_path = os.path.join(settings.BASE_DIR.parent, "best.pt")
+merged_2whe_model = YOLO(model_path)
+
+merged_2whe_model.to(DEVICE)
 
 # Initialize the OCR class globally
 lp_ocr = LicensePlateOCR()
