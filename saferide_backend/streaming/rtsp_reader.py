@@ -4,6 +4,8 @@ import threading
 import base64
 
 from .frame_store import set_raw_frame, set_annotated_result
+from saferide_backend.live_pipeline import run_live_pipeline
+
 
 # ✅ Your RTSP stream from MediaMTX
 RTSP_URL = "rtsp://127.0.0.1:8554/mobile"
@@ -61,8 +63,12 @@ def rtsp_loop():
                 if now - last_time >= (1 / TARGET_FPS):
                     last_time = now
 
-                    annotated_b64 = encode_frame_to_base64_jpeg(frame)
-                    set_annotated_result(annotated_b64, [])
+                    # ✅ Run live YOLO + auto save violations
+                    annotated_frame, violations = run_live_pipeline(frame)
+                    annotated_b64 = encode_frame_to_base64_jpeg(annotated_frame)
+
+                    # store for frontend polling
+                    set_annotated_result(annotated_b64, violations)
 
                 time.sleep(0.001)
 
