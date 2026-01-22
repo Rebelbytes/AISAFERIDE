@@ -158,3 +158,24 @@ DEFAULT_FROM_EMAIL = 'pradhanradhika282@gmail.com'  # Replace with your Gmail
 
 # For development/testing, you can use console backend
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Logging Configuration for Debug
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+    'loggers': {
+        'saferide_backend': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}

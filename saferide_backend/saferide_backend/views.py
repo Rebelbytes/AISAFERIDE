@@ -17,6 +17,7 @@ import math
 from .models import Violation
 from .serializers import ViolationSerializer
 from .license_plate_ocr import LicensePlateOCR
+from .red_light_detection import RedLightDetector
 import easyocr
 import regex as re
 
@@ -380,6 +381,9 @@ class DetectView(APIView):
         filename = fs.save(uploaded_file.name, uploaded_file)
         filepath = fs.path(filename)
 
+        # Get violation category from request
+        violation_category = request.POST.get("violation_category", "general")
+        
         is_video = filepath.lower().endswith(('.mp4', '.avi', '.mov'))
         is_image = filepath.lower().endswith(('.jpg', '.jpeg', '.png'))
         violations_created = []
@@ -396,8 +400,28 @@ class DetectView(APIView):
             preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
             os.makedirs(preview_dir, exist_ok=True)
             video_out_path = os.path.join(preview_dir, "output.mp4")
-            out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'H264'), fps, (width, height))
+            
+            # Use MJPEG codec which is more compatible on Windows
+            # Fallback from H264 to MJPEG for better compatibility
+            try:
+                out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'MJPG'), fps, (width, height))
+                if not out.isOpened():
+                    print("MJPG codec failed, trying mp4v...")
+                    out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+                if not out.isOpened():
+                    print("mp4v codec failed, trying XVID...")
+                    out = cv2.VideoWriter(video_out_path, cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
+            except Exception as e:
+                print(f"Error creating VideoWriter: {e}")
+                return Response({"error": f"Cannot create video output: {str(e)}"}, status=400)
+            
+            if not out.isOpened():
+                return Response({"error": "Failed to initialize video writer with any available codec"}, status=400)
 
+            # Initialize appropriate detector based on violation category
+            if violation_category == "red_light":
+                detector = RedLightDetector()
+            
             frame_count = 0
             unique_violations = []  # Track unique violations with spatial and temporal tolerance
             spatial_tolerance = 80  # pixels tolerance for considering violations as the same spatially
@@ -411,6 +435,112 @@ class DetectView(APIView):
                 if frame_count % 2 != 0:
                     continue  # skip alternate frames
 
+                # Process based on violation category
+                if violation_category == "red_light":
+                    processed_frame, violations_in_frame = detector.detect_frame(frame, frame_count)
+                    
+                    for violation in violations_in_frame:
+                        violation_dict = {
+                            "type": violation["type"],
+                            "confidence": violation["confidence"],
+                            "plate_number": violation.get("plate_number", ""),
+                            "frame_number": violation.get("frame_number", frame_count)
+                        }
+
+                        # Save frame image
+                        frame_name = f"frame_{uuid.uuid4()}.jpg"
+                        frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                        os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                        cv2.imwrite(frame_path, processed_frame)
+
+                        # Create violation object
+                        violation_obj = Violation.objects.create(
+                            frame_image=os.path.join("violation_frames", frame_name),
+                            violation_type=violation_dict["type"],
+                            confidence=violation_dict["confidence"]
+                        )
+                        violations_created.append(violation_obj)
+                
+                else:  # General violations
+                    processed_frame, violations_in_frame, plates = detect_frame(frame)
+
+                    for violation in violations_in_frame:
+                        cls_id, conf, x1, y1, x2, y2 = violation
+                        violation_dict = {
+                            "type": violation_classes[cls_id],
+                            "confidence": conf,
+                            "bbox": (x1, y1, x2, y2),
+                            "frame_number": frame_count
+                        }
+
+                        # Save frame image
+                        frame_name = f"frame_{uuid.uuid4()}.jpg"
+                        frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                        os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                        cv2.imwrite(frame_path, processed_frame)
+
+                        # Find nearest license plate for this violation
+                        license_plate_path = None
+                        if plates:
+                            vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
+                            nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
+                            px1, py1, px2, py2 = nearest_plate
+                            # Crop the license plate from the frame
+                            plate_crop = frame[py1:py2, px1:px2]
+                            if plate_crop.size > 0:
+                                plate_name = f"plate_{uuid.uuid4()}.jpg"
+                                plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
+                                os.makedirs(os.path.dirname(plate_path), exist_ok=True)
+                                cv2.imwrite(plate_path, plate_crop)
+                                license_plate_path = os.path.join("license_plates", plate_name)
+
+                        # Save each violation individually
+                        violation_obj = Violation.objects.create(
+                            frame_image=os.path.join("violation_frames", frame_name),
+                            license_plate_image=license_plate_path,
+                            violation_type=violation_dict["type"],
+                            confidence=violation_dict["confidence"]
+                        )
+                        violations_created.append(violation_obj)
+
+                out.write(processed_frame)
+
+            cap.release()
+            out.release()
+
+        elif is_image:
+            frame_count = 1
+            frame = cv2.imread(filepath)
+            if frame is None:
+                return Response({"error": "Failed to read image"}, status=400)
+
+            # Process based on violation category
+            if violation_category == "red_light":
+                detector = RedLightDetector()
+                processed_frame, violations_in_frame = detector.detect_frame(frame, frame_count)
+                
+                for violation in violations_in_frame:
+                    violation_dict = {
+                        "type": violation["type"],
+                        "confidence": violation["confidence"],
+                        "plate_number": violation.get("plate_number", ""),
+                    }
+
+                    # Save frame image
+                    frame_name = f"frame_{uuid.uuid4()}.jpg"
+                    frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
+                    os.makedirs(os.path.dirname(frame_path), exist_ok=True)
+                    cv2.imwrite(frame_path, processed_frame)
+
+                    # Create violation object
+                    violation_obj = Violation.objects.create(
+                        frame_image=os.path.join("violation_frames", frame_name),
+                        violation_type=violation_dict["type"],
+                        confidence=violation_dict["confidence"]
+                    )
+                    violations_created.append(violation_obj)
+            
+            else:  # General violations
                 processed_frame, violations_in_frame, plates = detect_frame(frame)
 
                 for violation in violations_in_frame:
@@ -418,8 +548,7 @@ class DetectView(APIView):
                     violation_dict = {
                         "type": violation_classes[cls_id],
                         "confidence": conf,
-                        "bbox": (x1, y1, x2, y2),
-                        "frame_number": frame_count
+                        "bbox": (x1, y1, x2, y2)
                     }
 
                     # Calculate center of current violation
@@ -476,57 +605,6 @@ class DetectView(APIView):
                             confidence=violation_dict["confidence"]
                         )
                         violations_created.append(violation_obj)
-
-                out.write(processed_frame)
-
-            cap.release()
-            out.release()
-
-        elif is_image:
-            frame_count = 1
-            frame = cv2.imread(filepath)
-            if frame is None:
-                return Response({"error": "Failed to read image"}, status=400)
-
-            processed_frame, violations_in_frame, plates = detect_frame(frame)
-
-            for violation in violations_in_frame:
-                cls_id, conf, x1, y1, x2, y2 = violation
-                violation_dict = {
-                    "type": violation_classes[cls_id],
-                    "confidence": conf,
-                    "bbox": (x1, y1, x2, y2)
-                }
-
-                # Save frame image
-                frame_name = f"frame_{uuid.uuid4()}.jpg"
-                frame_path = os.path.join(settings.MEDIA_ROOT, "violation_frames", frame_name)
-                os.makedirs(os.path.dirname(frame_path), exist_ok=True)
-                cv2.imwrite(frame_path, processed_frame)
-
-                # Find nearest license plate for this violation
-                license_plate_path = None
-                if plates:
-                    vx, vy = (x1 + x2) // 2, (y1 + y2) // 2
-                    nearest_plate = min(plates, key=lambda p: math.hypot(vx - (p[0] + p[2]) // 2, vy - (p[1] + p[3]) // 2))
-                    px1, py1, px2, py2 = nearest_plate
-                    # Crop the license plate from the frame
-                    plate_crop = frame[py1:py2, px1:px2]
-                    if plate_crop.size > 0:
-                        plate_name = f"plate_{uuid.uuid4()}.jpg"
-                        plate_path = os.path.join(settings.MEDIA_ROOT, "license_plates", plate_name)
-                        os.makedirs(os.path.dirname(plate_path), exist_ok=True)
-                        cv2.imwrite(plate_path, plate_crop)
-                        license_plate_path = os.path.join("license_plates", plate_name)
-
-                # Save each violation individually
-                violation_obj = Violation.objects.create(
-                    frame_image=os.path.join("violation_frames", frame_name),
-                    license_plate_image=license_plate_path,
-                    violation_type=violation_dict["type"],
-                    confidence=violation_dict["confidence"]
-                )
-                violations_created.append(violation_obj)
 
         else:
             return Response({"error": "Unsupported file type"}, status=400)

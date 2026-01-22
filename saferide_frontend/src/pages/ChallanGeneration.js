@@ -22,6 +22,7 @@ export default function ChallanGeneration() {
 	const [vehicleOwner, setVehicleOwner] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
+	const [emailStatus, setEmailStatus] = useState(null);
 
 	// Get data from navigation state
 	const { licensePlateNumber, violationType } = location.state || {};
@@ -47,6 +48,10 @@ export default function ChallanGeneration() {
 
 			setChallanData(response.data.challan);
 			setVehicleOwner(response.data.vehicle_owner);
+			setEmailStatus({
+				sent: response.data.email_sent,
+				message: response.data.email_message
+			});
 			setError(null);
 		} catch (error) {
 			console.error("Error generating challan:", error);
@@ -243,6 +248,35 @@ export default function ChallanGeneration() {
 										No vehicle owner information found for license plate number <strong>{challanData?.vehicle_number}</strong>.
 										The challan has been generated but owner details are not available in the database.
 									</p>
+								</div>
+							)}
+
+							{/* Email Status */}
+							{emailStatus && (
+								<div className={`p-4 rounded-lg mb-6 ${
+									emailStatus.sent 
+										? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
+										: 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+								}`}>
+									<div className="flex items-center gap-3">
+										{emailStatus.sent ? (
+											<CheckCircle className="w-6 h-6 text-green-600" />
+										) : (
+											<AlertTriangle className="w-6 h-6 text-yellow-600" />
+										)}
+										<div>
+											<h4 className={`font-semibold ${
+												emailStatus.sent ? 'text-green-800 dark:text-green-300' : 'text-yellow-800 dark:text-yellow-300'
+											}`}>
+												{emailStatus.sent ? 'Email Notification Sent' : 'Email Notification Status'}
+											</h4>
+											<p className={`text-sm ${
+												emailStatus.sent ? 'text-green-700 dark:text-green-400' : 'text-yellow-700 dark:text-yellow-400'
+											}`}>
+												{emailStatus.message}
+											</p>
+										</div>
+									</div>
 								</div>
 							)}
 

@@ -452,7 +452,10 @@ export default function Dashboard() {
 											transition={{ delay: idx * 0.2, type: "spring", stiffness: 120 }}
 											className="relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-4 rounded-xl shadow-xl hover:shadow-2xl cursor-pointer border border-white/20 dark:border-gray-700/50 overflow-hidden group transition-all duration-500 transform-gpu"
 											onClick={
-												idx === 0 ? () => navigate("/live-detection") : idx === 1 ? () => setShowAiModal(true) : undefined
+												idx === 0 ? () => navigate("/live-detection") : 
+												idx === 1 ? () => setShowAiModal(true) : 
+												idx === 3 ? () => navigate("/echallan-management") : 
+												undefined
 											}
 										>
 											{/* Animated gradient border */}

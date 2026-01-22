@@ -11,6 +11,7 @@ import SavedViolations from "./pages/SavedViolations";
 import Profile from "./pages/Profile";
 import UploadPlate from "./pages/UploadPlate";
 import ChallanGeneration from "./pages/ChallanGeneration";
+import EChallanManagement from "./pages/EChallanManagement";
 
 function App() {
 	const isLoggedIn = !!localStorage.getItem("access");
@@ -54,6 +55,7 @@ function App() {
 					<Route path="/profile" element={<Profile />} />
 					<Route path="/ocr_upload" element={<UploadPlate />} />
 					<Route path="/challan-generation" element={<ChallanGeneration />} />
+					<Route path="/echallan-management" element={<EChallanManagement />} />
 				</Routes>
 			</div>
 		</Router>
