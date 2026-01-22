@@ -59,3 +59,17 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Database
+saferide_backend/db.sqlite3
+
+# Media & runtime artifacts
+saferide_backend/media/
+runs/
+
+# Videos & images
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.png
