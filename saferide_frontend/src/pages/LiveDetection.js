@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Camera, AlertCircle, Check } from "lucide-react";
@@ -6,135 +6,61 @@ import api from "../utils/api";
 
 export default function LiveDetection() {
   const navigate = useNavigate();
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+
   const [isCameraOn, setIsCameraOn] = useState(false);
+
+  // ✅ NEW: Raw feed image (LEFT)
+  const [rawImage, setRawImage] = useState(null);
+
+  // ✅ Existing: Annotated feed image (RIGHT)
   const [annotatedImage, setAnnotatedImage] = useState(null);
   const [violationTypes, setViolationTypes] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+
+  const [isProcessing, setIsProcessing] = useState(false); // optional overlay
   const [vehicleType, setVehicleType] = useState("2 wheeler");
   const [violationCategory, setViolationCategory] = useState("general");
   const [error, setError] = useState(null);
 
+  // ✅ Poll backend for raw + annotated frames when "Start Live" is ON
   useEffect(() => {
-    let stream = null;
-    let animationId = null;
-    let frameCount = 0;
-    let processInterval = null;
-
-    const startCamera = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'environment' // Use back camera if available
-          } 
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-          setIsCameraOn(true);
-          setError(null);
-        }
-      } catch (err) {
-        setError("Error accessing camera: " + err.message);
-        console.error("Camera error:", err);
-      }
-    };
-
-    const processFrame = () => {
-      if (!isCameraOn || !videoRef.current || !canvasRef.current || videoRef.current.videoWidth === 0) {
-        animationId = requestAnimationFrame(processFrame);
-        return;
-      }
-
-      frameCount++;
-      
-      // Draw frame to canvas for processing
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      ctx.drawImage(videoRef.current, 0, 0);
-
-      // Process every 60 frames (~2 FPS for better performance, reduce lag)
-      if (frameCount % 60 === 0) {
-        const frameData = canvas.toDataURL("image/jpeg", 0.7); // Lower quality for faster transmission
-
-        setIsProcessing(true);
-        api.post("/live-detect/", {
-          vehicle_type: vehicleType,
-          violation_category: violationCategory,
-          image_base64: frameData
-        })
-        .then(response => {
-          setAnnotatedImage(response.data.annotated_image_base64);
-          setViolationTypes(response.data.violation_types || []);
-          setError(null);
-        })
-        .catch(err => {
-          console.error("Live detection error:", err);
-          setError("Detection error: " + (err.response?.data?.error || err.message));
-        })
-        .finally(() => setIsProcessing(false));
-      }
-
-      animationId = requestAnimationFrame(processFrame);
-    };
+    let interval = null;
 
     if (isCameraOn) {
-      // Start processing after video is ready
-      const startProcessing = () => {
-        frameCount = 0;
-        processFrame();
-      };
+      setError(null);
 
-      videoRef.current.addEventListener("loadedmetadata", startProcessing);
-      videoRef.current.addEventListener("canplay", startProcessing);
-
-      // Also start a timer-based processing for consistency
-      processInterval = setInterval(() => {
-        if (isCameraOn && videoRef.current && videoRef.current.readyState >= 2) {
-          const canvas = canvasRef.current;
-          const ctx = canvas.getContext("2d");
-          canvas.width = videoRef.current.videoWidth;
-          canvas.height = videoRef.current.videoHeight;
-          ctx.drawImage(videoRef.current, 0, 0);
-          const frameData = canvas.toDataURL("image/jpeg", 0.7);
-
+      interval = setInterval(async () => {
+        try {
           setIsProcessing(true);
-          api.post("/live-detect/", {
-            vehicle_type: vehicleType,
-            violation_category: violationCategory,
-            image_base64: frameData
-          })
-          .then(response => {
-            setAnnotatedImage(response.data.annotated_image_base64);
-            setViolationTypes(response.data.violation_types || []);
-            setError(null);
-          })
-          .catch(err => {
-            console.error("Live detection error:", err);
-            setError("Detection error: " + (err.response?.data?.error || err.message));
-          })
-          .finally(() => setIsProcessing(false));
+
+          // 1) RAW FEED (LEFT)
+          const rawRes = await api.get("stream/raw/");
+          if (rawRes.data?.status === "ok" && rawRes.data?.image_base64) {
+            setRawImage(rawRes.data.image_base64);
+          }
+
+          // 2) ANNOTATED FEED (RIGHT)
+          const annRes = await api.get("stream/annotated/");
+          if (annRes.data?.status === "ok" && annRes.data?.annotated_image_base64) {
+            setAnnotatedImage(annRes.data.annotated_image_base64);
+            setViolationTypes(annRes.data.violation_types || []);
+          }
+
+          setError(null);
+        } catch (err) {
+          console.error("Stream error:", err);
+          setError(
+            "Stream error: Check if RTSP pipeline + Django streaming endpoints are running."
+          );
+        } finally {
+          setIsProcessing(false);
         }
-      }, 2000); // Process every 2 seconds to reduce lag
+      }, 800); // ~1.25 FPS refresh (safe). You can set 500 for faster UI
     }
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-      if (processInterval) {
-        clearInterval(processInterval);
-      }
+      if (interval) clearInterval(interval);
     };
-  }, [isCameraOn, vehicleType, violationCategory]);
+  }, [isCameraOn]);
 
   const handleStartLive = () => {
     setIsCameraOn(true);
@@ -142,6 +68,7 @@ export default function LiveDetection() {
 
   const handleStopLive = () => {
     setIsCameraOn(false);
+    setRawImage(null);
     setAnnotatedImage(null);
     setViolationTypes([]);
   };
@@ -156,18 +83,19 @@ export default function LiveDetection() {
       return;
     }
 
-    api.post("/save-violation/", {
-      annotated_image_base64: annotatedImage,
-      violation: violation
-    })
-    .then(response => {
-      alert("Violation saved successfully!");
-      setError(null);
-    })
-    .catch(err => {
-      console.error("Save violation error:", err);
-      setError("Save error: " + (err.response?.data?.error || err.message));
-    });
+    api
+      .post("/save-violation/", {
+        annotated_image_base64: annotatedImage,
+        violation: violation,
+      })
+      .then(() => {
+        alert("Violation saved successfully!");
+        setError(null);
+      })
+      .catch((err) => {
+        console.error("Save violation error:", err);
+        setError("Save error: " + (err.response?.data?.error || err.message));
+      });
   };
 
   return (
@@ -190,24 +118,30 @@ export default function LiveDetection() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Camera Feed */}
+          {/* ✅ RAW LIVE FEED (LEFT) */}
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Camera className="w-5 h-5" />
-              Live Camera Feed
+              Live Camera Feed (Raw)
             </h2>
+
             <div className="relative">
               {isCameraOn ? (
                 <>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    className="w-full rounded max-h-96 object-contain"
-                  />
+                  {rawImage ? (
+                    <img
+                      src={rawImage}
+                      alt="Live Raw Feed"
+                      className="w-full rounded max-h-96 object-contain"
+                    />
+                  ) : (
+                    <div className="w-full h-96 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
+                      <p className="text-gray-500">Waiting for raw feed...</p>
+                    </div>
+                  )}
+
                   {isProcessing && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 rounded">
                       <div className="text-white flex items-center gap-2">
                         Processing...
                       </div>
@@ -220,6 +154,7 @@ export default function LiveDetection() {
                 </div>
               )}
             </div>
+
             <div className="flex gap-4 mt-4">
               <button
                 onClick={handleStartLive}
@@ -240,10 +175,11 @@ export default function LiveDetection() {
             </div>
           </div>
 
-          {/* Annotated Feed & Violations */}
+          {/* ✅ ANNOTATED FEED + VIOLATIONS (RIGHT) */}
           <div className="space-y-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
               <h2 className="text-lg font-semibold mb-4">Annotated Detection</h2>
+
               {annotatedImage ? (
                 <img
                   src={annotatedImage}
@@ -263,6 +199,7 @@ export default function LiveDetection() {
                   <AlertCircle className="w-5 h-5 text-red-500" />
                   Live Violations
                 </h2>
+
                 <ul className="space-y-2">
                   {violationTypes.map((violation, index) => (
                     <li
@@ -309,6 +246,7 @@ export default function LiveDetection() {
               />
               2 Wheeler
             </label>
+
             <label className="flex items-center">
               <input
                 type="radio"
@@ -340,6 +278,7 @@ export default function LiveDetection() {
               />
               General
             </label>
+
             <label className="flex items-center">
               <input
                 type="radio"

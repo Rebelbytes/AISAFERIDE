@@ -34,6 +34,7 @@ urlpatterns = [
     path("api/violations/", ViolationsListView.as_view(), name="violations_list"),
     path("api/analytics/", AnalyticsView.as_view(), name="analytics"),
     path('api/ocr_upload/', ProcessOCRView.as_view(), name='ocr_upload'),
+    path("api/stream/", include("streaming.urls")),
 ]
 
 if settings.DEBUG:
