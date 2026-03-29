@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -27,16 +27,7 @@ export default function ChallanGeneration() {
 	// Get data from navigation state
 	const { licensePlateNumber, violationType } = location.state || {};
 
-	useEffect(() => {
-		if (licensePlateNumber && violationType) {
-			generateChallan();
-		} else {
-			setError("Missing required data for challan generation");
-			setLoading(false);
-		}
-	}, [licensePlateNumber, violationType]);
-
-	const generateChallan = async () => {
+	const generateChallan = useCallback(async () => {
 		try {
 			setLoading(true);
 			
@@ -59,7 +50,16 @@ export default function ChallanGeneration() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [licensePlateNumber, violationType]);
+
+	useEffect(() => {
+		if (licensePlateNumber && violationType) {
+			generateChallan();
+		} else {
+			setError("Missing required data for challan generation");
+			setLoading(false);
+		}
+	}, [generateChallan]);
 
 	const handleBack = () => {
 		navigate(-1); // Go back to previous page

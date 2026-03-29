@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -6,8 +6,6 @@ import {
   Download,
   Mail,
   Eye,
-  Edit,
-  Trash2,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -22,9 +20,6 @@ import {
   Plus,
   ChevronDown,
   ChevronUp,
-  Camera,
-  Video,
-  Shield,
 } from "lucide-react";
 import api from "../utils/api";
 
@@ -64,37 +59,7 @@ export default function EChallanManagement() {
     created_by: "Admin"
   });
 
-  useEffect(() => {
-    fetchEchallans();
-    fetchStats();
-  }, []);
-
-  useEffect(() => {
-    filterEchallans();
-  }, [echallans, searchTerm, statusFilter, violationFilter, dateRange]);
-
-  const fetchEchallans = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get("/echallan/");
-      setEchallans(response.data);
-    } catch (error) {
-      console.error("Error fetching echallans:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStats = async () => {
-    try {
-      const response = await api.get("/echallan/stats/");
-      setStats(response.data);
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  };
-
-  const filterEchallans = () => {
+  const filterEchallans = useCallback(() => {
     let filtered = [...echallans];
 
     // Search by vehicle number
@@ -134,6 +99,36 @@ export default function EChallanManagement() {
     }
 
     setFilteredEchallans(filtered);
+  }, [echallans, searchTerm, statusFilter, violationFilter, dateRange]);
+
+  useEffect(() => {
+    fetchEchallans();
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    filterEchallans();
+  }, [filterEchallans]);
+
+  const fetchEchallans = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get("/echallan/");
+      setEchallans(response.data);
+    } catch (error) {
+      console.error("Error fetching echallans:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const response = await api.get("/echallan/stats/");
+      setStats(response.data);
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
   };
 
   const handleSendEmail = async (echallanId) => {

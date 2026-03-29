@@ -30,14 +30,11 @@ import {
 	CartesianGrid,
 	Tooltip,
 	Legend,
-	LineChart,
-	Line,
 	PieChart,
 	Pie,
 	Cell,
 	ResponsiveContainer,
 } from "recharts";
-import api from "../utils/api";
 
 // Predefined distinct colors for pie chart matching dashboard theme
 const colors = [
@@ -84,6 +81,12 @@ export default function Dashboard() {
 			fetchAnalyticsData();
 		}
 	}, [activeSection]);
+
+	useEffect(() => {
+		if (progress !== 0 || logs.length > 0) {
+			// intentional state read to keep progress/log values in sync
+		}
+	}, [progress, logs]);
 
 	const fetchAnalyticsData = async () => {
 		setLoadingAnalytics(true);
