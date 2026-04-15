@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'challan',
     'echallan',
     'saferide_backend',
+    'streaming',
 ]
 
 MIDDLEWARE = [
