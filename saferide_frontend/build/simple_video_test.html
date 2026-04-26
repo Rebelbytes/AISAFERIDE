@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple Video Playback Test</title>
+</head>
+<body>
+  <h1>Simple Video Playback Test</h1>
+  <p>Enter the full URL of the annotated video file to test playback:</p>
+  <input type="text" id="videoUrlInput" size="80" placeholder="http://127.0.0.1:8000/media/previews/2025-10-02/annotated_xxx.mp4" />
+  <button onclick="loadVideo()">Load Video</button>
+  <br /><br />
+  <video id="videoPlayer" width="640" height="360" controls muted playsinline>
+    Your browser does not support the video tag.
+  </video>
+
+  <script>
+    function loadVideo() {
+      const url = document.getElementById('videoUrlInput').value.trim();
+      if (!url) {
+        alert('Please enter a video URL');
+        return;
+      }
+      const video = document.getElementById('videoPlayer');
+      video.src = url;
+      video.load();
+      video.play().catch(e => {
+        console.error('Video playback error:', e);
+        alert('Video playback error: ' + e.message);
+      });
+    }
+  </script>
+</body>
+</html>
