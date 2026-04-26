@@ -1,8 +1,9 @@
-
 # Saferide AI Project 🚦
+
 # Traffic Violation Detection System using Real-Time AI Analytics
 
 This project consists of:
+
 - **Backend:** Django + DRF for AI violation detection, storage, and APIs.
 - **Frontend:** React for UI dashboard + live monitoring.
 - **Live Streaming Prototype:**
@@ -17,16 +18,19 @@ This project consists of:
 ## 🛠️ Prerequisites
 
 ### Backend Requirements
+
 - Python 3.8+
 - pip
 - Git
 - Libraries: opencv-python, ultralytics, django, djangorestframework
 
 ### Frontend Requirements
+
 - Node.js 16+
 - npm or yarn
 
 ### Live Streaming Requirements
+
 - MediaMTX (RTSP Server)
 - FFmpeg (must be in system PATH)
 - Mobile phone (Chrome recommended)
@@ -58,8 +62,8 @@ python manage.py runserver 0.0.0.0:8000 --noreload
 
 Backend URLs:
 
-* [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
-* [http://127.0.0.1:8000/api/](http://127.0.0.1:8000/api/)
+- [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+- [http://127.0.0.1:8000/api/](http://127.0.0.1:8000/api/)
 
 ---
 
@@ -77,7 +81,7 @@ npm start
 
 Frontend URL:
 
-* [http://localhost:3000/](http://localhost:3000/)
+- [http://localhost:3000/](http://localhost:3000/)
 
 ---
 
@@ -92,6 +96,7 @@ The phone acts as the camera sender.
 ---
 
 ### Step A — Install MediaMTX (RTSP Server)
+
 You need this to act as the "middleman" that broadcasts the video stream.
 
 **For Windows:**
@@ -137,7 +142,7 @@ FFmpeg is the engine that converts the raw video data into a streamable format.
    - Click **New** and paste the path to your `bin` folder.
    - Click OK on all windows.
 
-4. **Verify:** Open a *new* terminal and type:
+4. **Verify:** Open a _new_ terminal and type:
 
    `ffmpeg -version`
 
@@ -156,7 +161,7 @@ FFmpeg is the engine that converts the raw video data into a streamable format.
 ### Step C — Start WebSocket + FFmpeg Bridge
 
 ```bash
-cd saferide_backend/streaming
+cd saferide_backend/rtsp
 python video_ws.py
 ```
 
@@ -186,36 +191,44 @@ http://<LAPTOP_IP>:8080/mobile_sender.html
 ### Step E — Start Sending Video From Mobile
 
 #### 1. Configure IP Address
+
 Open `rtsp/mobile_sender.html` and ensure the WebSocket URL points to your laptop.
-* **Automatic (Is currently used):**
-    ```javascript
-    const WS_URL = `ws://${window.location.hostname}:9000`;
-    ```
-* **Manual:** Run `ipconfig` on Windows to find your IPv4 address and hardcode it if needed.
+
+- **Automatic (Is currently used):**
+  ```javascript
+  const WS_URL = `ws://${window.location.hostname}:9000`;
+  ```
+- **Manual:** Run `ipconfig` on Windows to find your IPv4 address and hardcode it if needed.
 
 #### 2. Enable Camera on HTTP (Crucial for Android)
+
 Mobile Chrome blocks camera access on HTTP unless whitelisted.
+
 1.  On your phone, go to: `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
 2.  Set it to **Enabled**.
 3.  In the text box, enter your laptop's origin: `http://<LAPTOP_IP>:8080` (e.g., `http://192.168.1.5:8080`)
 4.  **Relaunch** Chrome completely.
 
 #### 3. Start Streaming
+
 1.  Navigate to: `http://<LAPTOP_IP>:8080/mobile_sender.html`
 2.  Tap **Start Camera**.
 3.  Allow permissions.
 
 **✅ Expected Result:**
-* Mobile video preview appears.
-* `video_ws.py` logs: `Client connected` & `FFmpeg started`.
-* MediaMTX logs: `publishing to path mobile`.
+
+- Mobile video preview appears.
+- `video_ws.py` logs: `Client connected` & `FFmpeg started`.
+- MediaMTX logs: `publishing to path mobile`.
 
 > **Troubleshooting:** If the camera works but WebSocket fails to connect, ensure your Laptop and Phone are on the **same Wi-Fi** and **Port 9000** is allowed through Windows Firewall.
+
 ---
 
 # ✅ Correct Run Order (Live Demo)
 
-### 1. Start MediaMTX 
+### 1. Start MediaMTX
+
 ```bash
 # In Terminal 1
 cd mediamtx
@@ -223,20 +236,24 @@ cd mediamtx
 ```
 
 ### 2. Start WebSocket Bridge
+
 ```bash
 # In Terminal 2
-python saferide_backend/streaming/video_ws.py
+python saferide_backend/rtsp/video_ws.py
 ```
 
 ### 3. Start Mobile HTTP Server
+
 ```bash
 # In Terminal 3
 cd saferide_backend/rtsp
 python -m http.server 8080
 ```
+
 ### 4. Open mobile page and Start Camera
 
 ### 5. Start Django Backend
+
 ```bash
 # In Terminal 4
 cd saferide_backend
@@ -244,6 +261,7 @@ python manage.py runserver 0.0.0.0:8000 --noreload
 ```
 
 ### 6. Start React Frontend
+
 ```bash
 # In Terminal 5
 cd saferide_frontend
@@ -270,26 +288,25 @@ Ignore it until the mobile sender starts streaming.
 
 ### Mobile camera permission denied
 
-* Use Chrome on Android
-* Ensure camera permission is allowed
+- Use Chrome on Android
+- Ensure camera permission is allowed
 
 ### WebSocket not connecting
 
-* Laptop and phone must be on same Wi-Fi
-* Check correct IP in mobile sender page
-* Ensure port 9000 is allowed in firewall
+- Laptop and phone must be on same Wi-Fi
+- Check correct IP in mobile sender page
+- Ensure port 9000 is allowed in firewall
 
 ### RTSP 404 Not Found
 
-* Mobile publisher is not running yet
-* Restart mobile page and Start Camera
+- Mobile publisher is not running yet
+- Restart mobile page and Start Camera
 
 ### React shows "Waiting for feed"
 
-* Confirm backend endpoints are reachable:
-
-  * [http://127.0.0.1:8000/api/stream/raw/](http://127.0.0.1:8000/api/stream/raw/)
-  * [http://127.0.0.1:8000/api/stream/annotated/](http://127.0.0.1:8000/api/stream/annotated/)
+- Confirm backend endpoints are reachable:
+  - [http://127.0.0.1:8000/api/stream/raw/](http://127.0.0.1:8000/api/stream/raw/)
+  - [http://127.0.0.1:8000/api/stream/annotated/](http://127.0.0.1:8000/api/stream/annotated/)
 
 ---
 
