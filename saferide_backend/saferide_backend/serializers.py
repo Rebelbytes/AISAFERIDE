@@ -6,4 +6,4 @@ from django.conf import settings
 class ViolationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Violation
-        fields = ['violation_type', 'confidence', 'frame_image', 'license_plate_image', 'created_at']
+        fields = ['id', 'violation_type', 'confidence', 'frame_image', 'license_plate_image', 'license_plate_number', 'created_at']

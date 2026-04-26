@@ -216,23 +216,45 @@ class ChallanListView(APIView):
         return Response(serializer.data)
 
 
+class ChallanStatsView(APIView):
+    def get(self, request):
+        """
+        Get statistics for challans
+        """
+        total_echallans = Challan.objects.count()
+        pending_echallans = Challan.objects.filter(status='Pending').count()
+        paid_echallans = Challan.objects.filter(status='Paid').count()
+        disputed_echallans = Challan.objects.filter(status='Disputed').count()
+        cancelled_echallans = Challan.objects.filter(status='Cancelled').count()
+        
+        # Violation type breakdown
+        violation_stats = {}
+        for challan in Challan.objects.all():
+            violation_type = challan.violation_type
+            if violation_type in violation_stats:
+                violation_stats[violation_type] += 1
+            else:
+                violation_stats[violation_type] = 1
+        
+        # Total fine amount
+        total_fine_amount = sum(challan.fine_amount for challan in Challan.objects.all())
+        
+        return Response({
+            'total_echallans': total_echallans,
+            'pending_echallans': pending_echallans,
+            'paid_echallans': paid_echallans,
+            'disputed_echallans': disputed_echallans,
+            'cancelled_echallans': cancelled_echallans,
+            'violation_stats': violation_stats,
+            'total_fine_amount': float(total_fine_amount)
+        })
+
+
 class ChallanDetailView(APIView):
     def get(self, request, challan_id):
         """
         Get a specific challan by ID
         """
         challan = get_object_or_404(Challan, id=challan_id)
-        serializer = ChallanSerializer(challan)
-        return Response(serializer.data)
-    
-    def patch(self, request, challan_id):
-        """
-        Update challan status
-        """
-        challan = get_object_or_404(Challan, id=challan_id)
-        challan.status = request.data.get('status', challan.status)
-        challan.notes = request.data.get('notes', challan.notes)
-        challan.save()
-        
         serializer = ChallanSerializer(challan)
         return Response(serializer.data)

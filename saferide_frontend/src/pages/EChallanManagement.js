@@ -113,10 +113,10 @@ export default function EChallanManagement() {
   const fetchEchallans = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/echallan/");
+      const response = await api.get("/challan/list/");
       setEchallans(response.data);
     } catch (error) {
-      console.error("Error fetching echallans:", error);
+      console.error("Error fetching challans:", error);
     } finally {
       setLoading(false);
     }
@@ -124,7 +124,7 @@ export default function EChallanManagement() {
 
   const fetchStats = async () => {
     try {
-      const response = await api.get("/echallan/stats/");
+      const response = await api.get("/challan/stats/");
       setStats(response.data);
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -132,45 +132,17 @@ export default function EChallanManagement() {
   };
 
   const handleSendEmail = async (echallanId) => {
-    try {
-      setActionLoading({ ...actionLoading, [echallanId]: true });
-      await api.post(`/echallan/${echallanId}/send-email/`);
-      alert("Email sent successfully!");
-    } catch (error) {
-      console.error("Error sending email:", error);
-      alert("Failed to send email. Please try again.");
-    } finally {
-      setActionLoading({ ...actionLoading, [echallanId]: false });
-    }
+    alert("Email functionality is not available for OCR-generated challans. Emails are sent automatically when challans are generated.");
   };
 
   const handleDownloadPDF = async (echallanId) => {
-    try {
-      setActionLoading({ ...actionLoading, [echallanId]: true });
-      const response = await api.get(`/echallan/${echallanId}/download-pdf/`, {
-        responseType: "blob",
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `echallan_${echallanId}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error downloading PDF:", error);
-      alert("Failed to download PDF. Please try again.");
-    } finally {
-      setActionLoading({ ...actionLoading, [echallanId]: false });
-    }
+    alert("PDF download functionality is not yet implemented for OCR-generated challans.");
   };
 
   const handleStatusUpdate = async (echallanId, newStatus) => {
     try {
       setActionLoading({ ...actionLoading, [echallanId]: true });
-      await api.patch(`/echallan/${echallanId}/`, { status: newStatus });
+      await api.patch(`/challan/${echallanId}/`, { status: newStatus });
       await fetchEchallans();
       alert("Status updated successfully!");
     } catch (error) {
@@ -608,13 +580,6 @@ export default function EChallanManagement() {
                                   >
                                     Mark as Cancelled
                                   </button>
-                                  <hr className="my-1" />
-                                  <button
-                                    onClick={() => handleDeleteEchallan(echallan.id)}
-                                    className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    Delete EChallan
-                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -851,20 +816,6 @@ export default function EChallanManagement() {
                     <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
                       {selectedEchallan.notes}
                     </p>
-                  </div>
-                )}
-
-                {selectedEchallan.dispute_reason && (
-                  <div className="mt-6">
-                    <h4 className="font-semibold text-gray-900 mb-3">Dispute Information</h4>
-                    <p className="text-gray-700 bg-red-50 p-3 rounded-lg">
-                      <strong>Reason:</strong> {selectedEchallan.dispute_reason}
-                    </p>
-                    {selectedEchallan.dispute_date && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        Disputed on: {new Date(selectedEchallan.dispute_date).toLocaleString()}
-                      </p>
-                    )}
                   </div>
                 )}
 

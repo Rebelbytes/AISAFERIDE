@@ -457,6 +457,7 @@ export default function Dashboard() {
 											onClick={
 												idx === 0 ? () => navigate("/live-detection") : 
 												idx === 1 ? () => setShowAiModal(true) : 
+												idx === 2 ? () => navigate("/anpr-logging") :
 												idx === 3 ? () => navigate("/echallan-management") : 
 												undefined
 											}

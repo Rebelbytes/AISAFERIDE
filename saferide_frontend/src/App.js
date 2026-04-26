@@ -8,6 +8,7 @@ import PreviewDetection from "./pages/PreviewDetection";
 import ViolationsTable from "./pages/ViolationsTable";
 import LiveDetection from "./pages/LiveDetection";
 import SavedViolations from "./pages/SavedViolations";
+import ANPRLogging from "./pages/ANPRLogging";
 import Profile from "./pages/Profile";
 import UploadPlate from "./pages/UploadPlate";
 import ChallanGeneration from "./pages/ChallanGeneration";
@@ -52,6 +53,7 @@ function App() {
 					<Route path="/violations-table" element={<ViolationsTable />} />
 					<Route path="/live-detection" element={<LiveDetection />} />
 					<Route path="/saved-violations" element={<SavedViolations />} />
+					<Route path="/anpr-logging" element={<ANPRLogging />} />
 					<Route path="/profile" element={<Profile />} />
 					<Route path="/ocr_upload" element={<UploadPlate />} />
 					<Route path="/challan-generation" element={<ChallanGeneration />} />

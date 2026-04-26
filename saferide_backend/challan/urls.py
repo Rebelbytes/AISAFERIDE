@@ -1,8 +1,9 @@
 from django.urls import path
-from .views import GenerateChallanView, ChallanListView, ChallanDetailView
+from .views import GenerateChallanView, ChallanListView, ChallanDetailView, ChallanStatsView
 
 urlpatterns = [
     path('generate/', GenerateChallanView.as_view(), name='generate_challan'),
     path('list/', ChallanListView.as_view(), name='challan_list'),
+    path('stats/', ChallanStatsView.as_view(), name='challan_stats'),
     path('<int:challan_id>/', ChallanDetailView.as_view(), name='challan_detail'),
 ]
