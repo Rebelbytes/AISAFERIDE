@@ -109,3 +109,4 @@ ffmpeg/ffmpeg-2026-01-07-git-af6a1dd0b2-full_build/presets/libvpx-1080p50_60.ffp
 mediamtx/LICENSE
 mediamtx/mediamtx.exe
 mediamtx/mediamtx.yml
+*.mp4
