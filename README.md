@@ -16,6 +16,9 @@ The project also includes an analytics dashboard for monitoring violations, anal
 One of the key advantages of the system is that traffic officers can start live monitoring directly through mobile devices in areas where CCTV infrastructure is unavailable.
 
 ---
+# 🎥 Demo Preview
+
+https://github.com/user-attachments/assets/741716d7-57f3-4c3a-966c-2dabe610ec99
 
 # ✨ Features
 
