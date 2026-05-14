@@ -1,7 +1,34 @@
-# Saferide AI Project 🚦
+# 🚦 SafeRide – AI Enabled Smart Traffic Violation Detection and Monitoring System
 
-# Traffic Violation Detection System using Real-Time AI Analytics
+## 📌 Introduction
+Road accidents caused by traffic rule violations continue to be a major concern worldwide. Manual traffic monitoring systems are often inefficient, time-consuming, and difficult to scale in high-traffic environments.  
 
+SafeRide is an AI-powered smart traffic monitoring and law enforcement system that automates violation detection, vehicle identification, and e-challan generation using Computer Vision and Deep Learning techniques.
+
+---
+
+# 📖 About the Project
+
+SafeRide is designed to detect multiple traffic violations in real time from both live video streams and uploaded CCTV footage. The system uses YOLO-based object detection and ANPR (Automatic Number Plate Recognition) techniques to identify violators, extract vehicle number plates, generate e-challans, and maintain historical records.
+
+The project also includes an analytics dashboard for monitoring violations, analyzing traffic patterns, and managing past challan records.
+
+One of the key advantages of the system is that traffic officers can start live monitoring directly through mobile devices in areas where CCTV infrastructure is unavailable.
+
+---
+
+# ✨ Features
+
+✅ Real-time traffic violation detection  
+✅ Multi-violation detection using YOLOv8  
+✅ Automatic Number Plate Recognition (ANPR)  
+✅ OCR using EasyOCR, Tesseract, and LPRNet  
+✅ Automated e-challan generation  
+✅ Violation history and record management  
+✅ Live video streaming and uploaded video support  
+✅ Analytics dashboard for traffic monitoring  
+
+---
 This project consists of:
 
 - **Backend:** Django + DRF for AI violation detection, storage, and APIs.
