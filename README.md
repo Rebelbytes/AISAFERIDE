@@ -340,6 +340,3 @@ Ignore it until the mobile sender starts streaming.
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License.
