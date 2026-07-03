@@ -339,4 +339,18 @@ Ignore it until the mobile sender starts streaming.
   - [http://127.0.0.1:8000/api/stream/annotated/](http://127.0.0.1:8000/api/stream/annotated/)
 
 ---
+## 📄 Research Publication
 
+🏆 This work has been published in the IEEE Xplore Digital Library.
+
+**Paper:**  
+*SafeRide – AI Enabled Smart Traffic Violation Detection and Monitoring System Using Neural Vision*
+
+**Conference:**  
+2nd IEEE International Conference on Computing, Communication and Green Engineering (CCGE 2026)
+
+**IEEE Xplore:**  
+https://ieeexplore.ieee.org/document/11581600
+
+**DOI:**  
+https://doi.org/10.1109/CCGE67142.2026.11581600
